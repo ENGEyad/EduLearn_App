@@ -1,25 +1,126 @@
 import 'package:flutter/material.dart';
 import '../../theme.dart';
+import '../../services/student_service.dart';
 
-import 'student_home_screen.dart';
 import 'student_subject_detail_screen.dart';
-import 'student_messages_screen.dart';
-import 'student_profile_screen.dart';
 
-class StudentSubjectsScreen extends StatelessWidget {
-  final String fullName;
-  final String academicId;
-  final List<String> subjects; // 👈 نفس List<String> القادمة من الهوم
+class StudentSubjectsScreen extends StatefulWidget {
+  final Map<String, dynamic> student;          // 👈 بيانات الطالب من الـ API
+  final List<dynamic> assignedSubjects;        // 👈 قائمة المواد من الـ API (القديمة من تسجيل الدخول)
 
   const StudentSubjectsScreen({
     super.key,
-    required this.fullName,
-    required this.academicId,
-    required this.subjects,
+    required this.student,
+    required this.assignedSubjects,
   });
 
   @override
+  State<StudentSubjectsScreen> createState() => _StudentSubjectsScreenState();
+}
+
+class _StudentSubjectsScreenState extends State<StudentSubjectsScreen> {
+  bool _isLoading = false;
+
+  late List<Map<String, dynamic>> _subjectItems;
+
+  @override
+  void initState() {
+    super.initState();
+    _buildInitialSubjects();
+    _refreshSubjects();
+  }
+
+  /// ✅ نبني قائمة المواد المبدئية من بيانات تسجيل الدخول
+  void _buildInitialSubjects() {
+    _subjectItems = widget.assignedSubjects
+        .whereType<Map<String, dynamic>>()
+        .where((m) {
+          final name = (m['subject_name'] ?? '').toString();
+          if (name.isEmpty) return false;
+
+          final rawId = m['subject_id'];
+          if (rawId == null) return false;
+
+          if (rawId is int) return true;
+          if (rawId is String) {
+            return int.tryParse(rawId) != null;
+          }
+          return false;
+        })
+        .toList();
+  }
+
+  Future<void> _refreshSubjects() async {
+    final String academicId = (widget.student['academic_id'] ?? '').toString();
+
+    if (academicId.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final List<dynamic> fresh = await StudentService.fetchStudentSubjects(
+        academicId: academicId,
+      );
+
+      final List<Map<String, dynamic>> items = fresh
+          .whereType<Map<String, dynamic>>()
+          .where((m) {
+            final name = (m['subject_name'] ?? '').toString();
+            if (name.isEmpty) return false;
+
+            final rawId = m['subject_id'];
+            if (rawId == null) return false;
+
+            if (rawId is int) return true;
+            if (rawId is String) {
+              return int.tryParse(rawId) != null;
+            }
+            return false;
+          })
+          .toList();
+
+      setState(() {
+        _subjectItems = items;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      // ممكن تضيف Snackbar هنا لاحقاً لو حاب
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final String fullName = (widget.student['full_name'] ?? '').toString();
+    final String academicId = (widget.student['academic_id'] ?? '').toString();
+
+    if (_isLoading && _subjectItems.isEmpty) {
+      return Scaffold(
+        backgroundColor: EduTheme.background,
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: EduTheme.background,
+          centerTitle: true,
+          title: const Text(
+            'My Subjects',
+            style: TextStyle(
+              color: EduTheme.primaryDark,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: EduTheme.background,
       appBar: AppBar(
@@ -37,140 +138,124 @@ class StudentSubjectsScreen extends StatelessWidget {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: subjects.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No subjects found for your grade.',
-                    style: TextStyle(
-                      color: EduTheme.textMuted,
-                      fontSize: 13,
-                    ),
-                  ),
-                )
-              : GridView.builder(
-                  itemCount: subjects.length,
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 3 / 2,
-                  ),
-                  itemBuilder: (context, index) {
-                    final subjectName = subjects[index];
-                    final icon = _iconForSubject(subjectName);
-
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => StudentSubjectDetailScreen(
-                              subjectName: subjectName,
-                            ),
+          child: RefreshIndicator(
+            onRefresh: _refreshSubjects,
+            child: _subjectItems.isEmpty
+                ? ListView(
+                    children: const [
+                      SizedBox(height: 120),
+                      Center(
+                        child: Text(
+                          'No subjects found for your grade.',
+                          style: TextStyle(
+                            color: EduTheme.textMuted,
+                            fontSize: 13,
                           ),
-                        );
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x11000000),
-                              blurRadius: 6,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              icon,
-                              color: EduTheme.primary,
-                              size: 28,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              subjectName,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                                color: EduTheme.primaryDark,
-                              ),
-                            ),
-                          ],
                         ),
                       ),
-                    );
-                  },
-                ),
-        ),
-      ),
-
-      // Bottom Navigation – هنا Subjects هي المحددة
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x11000000),
-              blurRadius: 10,
-              offset: Offset(0, -2),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _BottomNavItem(
-              icon: Icons.home_filled,
-              label: 'Home',
-              onTap: () {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(
-                    builder: (_) => StudentHomeScreen(
-                      fullName: fullName,
-                      academicId: academicId,
-                      subjects: subjects,
+                    ],
+                  )
+                : GridView.builder(
+                    itemCount: _subjectItems.length,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 3 / 2,
                     ),
+                    itemBuilder: (context, index) {
+                      final subjectMap = _subjectItems[index];
+
+                      // ✅ قراءة subject_id بشكل آمن
+                      final dynamic rawSubjectId = subjectMap['subject_id'];
+                      int? subjectId;
+                      if (rawSubjectId is int) {
+                        subjectId = rawSubjectId;
+                      } else if (rawSubjectId is String) {
+                        subjectId = int.tryParse(rawSubjectId);
+                      }
+
+                      // لو الـ ID غير صالح نتجاهل هذا الكرت بدل ما يطيح التطبيق
+                      if (subjectId == null) {
+                        return const SizedBox.shrink();
+                      }
+                      // ✅ هنا مضمون إنه non-null
+                      final int safeSubjectId = subjectId;
+
+                      final String subjectName =
+                          (subjectMap['subject_name'] ?? '').toString();
+                      final String teacherName =
+                          (subjectMap['teacher_name'] ?? '').toString();
+                      final String? teacherImage =
+                          subjectMap['teacher_image'] as String?;
+
+                      final icon = _iconForSubject(subjectName);
+
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => StudentSubjectDetailScreen(
+                                subjectId: safeSubjectId,
+                                academicId: academicId,
+                                subjectName: subjectName,
+                                teacherName: teacherName.isNotEmpty
+                                    ? teacherName
+                                    : null,
+                                teacherImage: teacherImage,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x11000000),
+                                blurRadius: 6,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                icon,
+                                color: EduTheme.primary,
+                                size: 28,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                subjectName,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                  color: EduTheme.primaryDark,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              if (teacherName.isNotEmpty)
+                                Text(
+                                  teacherName,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: EduTheme.textMuted,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
-            _BottomNavItem(
-              icon: Icons.menu_book_rounded,
-              label: 'Subjects',
-              selected: true,
-              onTap: () {},
-            ),
-            _BottomNavItem(
-              icon: Icons.message_rounded,
-              label: 'Messages',
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const StudentMessagesScreen(),
-                  ),
-                );
-              },
-            ),
-            _BottomNavItem(
-              icon: Icons.person_rounded,
-              label: 'Profile',
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const StudentProfileScreen(),
-                  ),
-                );
-              },
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -211,48 +296,5 @@ class StudentSubjectsScreen extends StatelessWidget {
       default:
         return Icons.menu_book_rounded;
     }
-  }
-}
-
-class _BottomNavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback? onTap;
-
-  const _BottomNavItem({
-    required this.icon,
-    required this.label,
-    this.selected = false,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: selected ? EduTheme.primary : EduTheme.textMuted,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? EduTheme.primary : EduTheme.textMuted,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

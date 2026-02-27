@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../theme.dart';
-import '../../services/api_service.dart';
-import '../student/student_home_screen.dart';
-import '../teacher/teacher_home_screen.dart';
+
+// ✅ بدل ApiService
+import '../../services/auth_service.dart';
+
+// 👇 بدلنا StudentHomeScreen بـ StudentMainScreen
+import '../student/student_main_screen.dart';
+import '../teacher/teacher_main_screen.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -26,7 +30,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool isLoading = false;
 
   Future<void> _handleCreateAccount() async {
-    // نفس الفاليديشـن للطرفين (طالب / أستاذ)
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => isLoading = true);
@@ -34,57 +37,75 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       if (isStudent) {
         // 👨‍🎓 تدفق الطالب
-        final res = await ApiService.authStudent(
+        final res = await AuthService.authStudent(
           fullName: fullNameCtrl.text.trim(),
           academicId: idCtrl.text.trim(),
           email: emailCtrl.text.trim().isEmpty ? null : emailCtrl.text.trim(),
-          password:
-              passwordCtrl.text.trim().isEmpty ? null : passwordCtrl.text.trim(),
+          password: passwordCtrl.text.trim().isEmpty
+              ? null
+              : passwordCtrl.text.trim(),
         );
 
-        final student = res['student'];
+        final dynamic studentRaw = res['student'];
+        if (studentRaw == null || studentRaw is! Map<String, dynamic>) {
+          throw Exception('Invalid student response from server');
+        }
 
-        // 👇 قراءة المواد من الـ JSON (list of strings)
-        final List<String> subjects = (student['subjects'] as List<dynamic>?)
-                ?.map((e) => e.toString())
-                .toList() ??
-            [];
+        final Map<String, dynamic> student =
+            Map<String, dynamic>.from(studentRaw);
+
+        final List<dynamic> assignedSubjects =
+            (student['assigned_subjects'] as List<dynamic>?) ?? [];
 
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (_) => StudentHomeScreen(
-              fullName: student['full_name'],
-              academicId: student['academic_id'],
-              subjects: subjects, // 👈 تمرير المواد للواجهة
+            builder: (_) => StudentMainScreen(
+              student: student,
+              assignedSubjects: assignedSubjects,
             ),
           ),
         );
       } else {
         // 👨‍🏫 تدفق الأستاذ
-        final res = await ApiService.authTeacher(
+        final res = await AuthService.authTeacher(
           fullName: fullNameCtrl.text.trim(),
           teacherCode: idCtrl.text.trim(),
           email: emailCtrl.text.trim().isEmpty ? null : emailCtrl.text.trim(),
-          password:
-              passwordCtrl.text.trim().isEmpty ? null : passwordCtrl.text.trim(),
+          password: passwordCtrl.text.trim().isEmpty
+              ? null
+              : passwordCtrl.text.trim(),
         );
 
-        final teacher = res['teacher'];
+        final dynamic teacherRaw = res['teacher'];
+        if (teacherRaw == null || teacherRaw is! Map<String, dynamic>) {
+          throw Exception('Invalid teacher response from server');
+        }
 
-        // 👇 نقرأ الإسنادات وإجمالي الطلاب من الـ API
-        final List<dynamic> assignments =
-            (teacher['assignments'] as List<dynamic>?) ?? [];
+        final Map<String, dynamic> teacher =
+            Map<String, dynamic>.from(teacherRaw);
+
+        final dynamic assignmentsRaw = teacher['assignments'];
+        final List<dynamic> assignments = (assignmentsRaw is List)
+            ? List<dynamic>.from(assignmentsRaw)
+            : <dynamic>[];
 
         final int totalAssignedStudents =
-            (teacher['total_assigned_students'] as int?) ??
-                (teacher['students_count'] as int?) ??
-                0;
+            assignments.fold<int>(0, (sum, item) {
+          if (item is! Map<String, dynamic>) return sum;
+          final dynamic count = item['students_count'];
+          if (count is int) return sum + count;
+          if (count is num) return sum + count.toInt();
+          if (count is String) {
+            final parsed = int.tryParse(count);
+            if (parsed != null) return sum + parsed;
+          }
+          return sum;
+        });
 
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (_) => TeacherHomeScreen(
-              fullName: teacher['full_name'] ?? '',
-              teacherCode: teacher['teacher_code'] ?? '',
+            builder: (_) => TeacherMainScreen(
+              teacher: teacher,
               assignments: assignments,
               totalAssignedStudents: totalAssignedStudents,
             ),
@@ -184,8 +205,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 16),
-
-                // الأيقونة العلوية
                 Center(
                   child: Container(
                     width: 72,
@@ -202,8 +221,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // العنوان
                 Center(
                   child: Column(
                     children: [
@@ -225,14 +242,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 24),
-
                 _buildRoleToggle(),
-
                 const SizedBox(height: 24),
-
-                // الفورم
                 Form(
                   key: _formKey,
                   child: Column(
@@ -253,7 +265,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
-
                       const Text('Email Address'),
                       const SizedBox(height: 6),
                       TextFormField(
@@ -264,7 +275,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         keyboardType: TextInputType.emailAddress,
                       ),
                       const SizedBox(height: 16),
-
                       const Text('Password'),
                       const SizedBox(height: 6),
                       TextFormField(
@@ -287,28 +297,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-
-                      Text(isStudent ? 'Student ID' : 'Teacher ID'),
+                      Text(isStudent ? 'Student ID' : 'Teacher Code'),
                       const SizedBox(height: 6),
                       TextFormField(
                         controller: idCtrl,
                         decoration: InputDecoration(
                           hintText: isStudent
                               ? 'Enter your student ID'
-                              : 'Enter your teacher ID',
+                              : 'Enter your teacher code',
                         ),
                         validator: (val) {
                           if (val == null || val.trim().isEmpty) {
                             return isStudent
                                 ? 'Student ID is required'
-                                : 'Teacher ID is required';
+                                : 'Teacher code is required';
                           }
                           return null;
                         },
                       ),
                       const SizedBox(height: 24),
-
-                      // زر Create Account
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -326,10 +333,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               : const Text('Create Account'),
                         ),
                       ),
-
                       const SizedBox(height: 16),
-
-                      // النص السفلي Log In
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -357,7 +361,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 16),
                     ],
                   ),

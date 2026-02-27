@@ -24,25 +24,23 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => isLoading = true);
 
     try {
-      final res = await ApiService.authStudent(
+      final res = await AuthService.authStudent(
         fullName: fullNameCtrl.text.trim(),
         academicId: idCtrl.text.trim(),
       );
 
-      final student = res['student'];
+      final Map<String, dynamic> student =
+          (res['student'] as Map<String, dynamic>);
 
-      // 👇 قراءة قائمة المواد من الـ JSON (list of strings)
-      final List<String> subjects = (student['subjects'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [];
+      // 👇 قراءة قائمة المواد المعينة من الـ JSON (assigned_subjects)
+      final List<dynamic> assignedSubjects =
+          (student['assigned_subjects'] as List<dynamic>?) ?? [];
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => StudentHomeScreen(
-            fullName: student['full_name'],
-            academicId: student['academic_id'],
-            subjects: subjects, // 👈 تمرير المواد لواجهة الطالب
+            student: student,
+            assignedSubjects: assignedSubjects,
           ),
         ),
       );

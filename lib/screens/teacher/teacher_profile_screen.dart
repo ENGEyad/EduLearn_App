@@ -1,62 +1,21 @@
 import 'package:flutter/material.dart';
 import '../../theme.dart';
-import 'teacher_home_screen.dart';
-import 'teacher_classes_screen.dart';
-import 'teacher_messages_screen.dart';
 
 class TeacherProfileScreen extends StatelessWidget {
-  final String fullName;
-  final String teacherCode;
+  final Map<String, dynamic> teacher;      // بيانات الأستاذ كاملة من الـ API
   final List<dynamic> assignments;
   final int totalAssignedStudents;
 
   const TeacherProfileScreen({
     super.key,
-    required this.fullName,
-    required this.teacherCode,
+    required this.teacher,
     required this.assignments,
     required this.totalAssignedStudents,
   });
 
-  void _onBottomTap(BuildContext context, int index) {
-    if (index == 0) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => TeacherHomeScreen(
-            fullName: fullName,
-            teacherCode: teacherCode,
-            assignments: assignments,
-            totalAssignedStudents: totalAssignedStudents,
-          ),
-        ),
-      );
-    } else if (index == 1) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => TeacherClassesScreen(
-            assignments: assignments,
-            fullName: fullName,
-            teacherCode: teacherCode,
-            totalAssignedStudents: totalAssignedStudents,
-          ),
-        ),
-      );
-    } else if (index == 2) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => TeacherMessagesScreen(
-            fullName: fullName,
-            teacherCode: teacherCode,
-            assignments: assignments,
-            totalAssignedStudents: totalAssignedStudents,
-          ),
-        ),
-      );
-    } else if (index == 3) {
-      // نحن في صفحة Profile
-      return;
-    }
-  }
+  String get fullName => (teacher['full_name'] ?? '').toString();
+  String get teacherCode => (teacher['teacher_code'] ?? '').toString();
+  String? get imageUrl => teacher['image'] as String?;
 
   @override
   Widget build(BuildContext context) {
@@ -70,11 +29,7 @@ class TeacherProfileScreen extends StatelessWidget {
         backgroundColor: EduTheme.background,
         centerTitle: true,
         title: const Text('Settings'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: EduTheme.primaryDark),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        // تبويب رئيسي، لا نستخدم سهم رجوع هنا
       ),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -85,14 +40,19 @@ class TeacherProfileScreen extends StatelessWidget {
               CircleAvatar(
                 radius: 40,
                 backgroundColor: Colors.white,
-                child: Text(
-                  firstLetter,
-                  style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w800,
-                    color: EduTheme.primaryDark,
-                  ),
-                ),
+                backgroundImage: (imageUrl != null && imageUrl!.isNotEmpty)
+                    ? NetworkImage(imageUrl!)
+                    : null,
+                child: (imageUrl == null || imageUrl!.isEmpty)
+                    ? Text(
+                        firstLetter,
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.w800,
+                          color: EduTheme.primaryDark,
+                        ),
+                      )
+                    : null,
               ),
               const SizedBox(height: 12),
               Text(
@@ -105,7 +65,7 @@ class TeacherProfileScreen extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                teacherCode, // ممكن لاحقًا تستبدله بالإيميل الحقيقي
+                teacherCode,
                 style: const TextStyle(
                   fontSize: 14,
                   color: EduTheme.textMuted,
@@ -141,7 +101,6 @@ class TeacherProfileScreen extends StatelessWidget {
           const SizedBox(height: 16),
 
           const _SectionTitle('Theme & Language'),
-          // Dark Mode سويتش شكلي (بدون منطق الآن)
           Container(
             margin: const EdgeInsets.only(bottom: 10),
             decoration: _tileBoxDecoration,
@@ -238,33 +197,6 @@ class TeacherProfileScreen extends StatelessWidget {
             ),
           ),
         ],
-      ),
-
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 3,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: EduTheme.primary,
-        unselectedItemColor: EduTheme.textMuted,
-        showUnselectedLabels: true,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.grid_view_rounded),
-            label: 'Dashboard',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.group_rounded),
-            label: 'Classes',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline_rounded),
-            label: 'Messages',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline_rounded),
-            label: 'Profile',
-          ),
-        ],
-        onTap: (index) => _onBottomTap(context, index),
       ),
     );
   }
