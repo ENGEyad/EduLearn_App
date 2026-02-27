@@ -1,24 +1,23 @@
 import 'package:flutter/material.dart';
 import '../../theme.dart';
 import 'teacher_classes_screen.dart';
-import 'teacher_messages_screen.dart';
-import 'teacher_profile_screen.dart';
+// import 'create_lesson_select_class_screen.dart';
 
 class TeacherHomeScreen extends StatelessWidget {
-  final String fullName;
-  final String teacherCode;
-
-  // 👇 البيانات القادمة من الـ API
-  final List<dynamic> assignments;
+  final Map<String, dynamic> teacher; // بيانات الأستاذ من الـ API
+  final List<dynamic> assignments; // البيانات القادمة من الـ API
   final int totalAssignedStudents;
 
   const TeacherHomeScreen({
     super.key,
-    required this.fullName,
-    required this.teacherCode,
+    required this.teacher,
     required this.assignments,
     required this.totalAssignedStudents,
   });
+
+  String get fullName => (teacher['full_name'] ?? '').toString();
+  String get teacherCode => (teacher['teacher_code'] ?? '').toString();
+  String? get imageUrl => teacher['image'] as String?;
 
   String get _firstName {
     final parts = fullName.trim().split(' ');
@@ -44,45 +43,29 @@ class TeacherHomeScreen extends StatelessWidget {
     return uniqueClasses.length;
   }
 
-  // 🔁 دالة مشتركة للتنقّل بين الصفحات الأربع من أي شاشة
-  void _onBottomTap(BuildContext context, int index) {
-    if (index == 0) {
-      // Dashboard (نفس الصفحة) – لا نعمل شيء
-      return;
-    } else if (index == 1) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => TeacherClassesScreen(
-            assignments: assignments,
-            fullName: fullName,
-            teacherCode: teacherCode,
-            totalAssignedStudents: totalAssignedStudents,
-          ),
+  // void _openCreateLessonFlow(BuildContext context) {
+  //   Navigator.of(context).push(
+  //     MaterialPageRoute(
+  //       builder: (_) => CreateLessonSelectClassScreen(
+  //         assignments: assignments,
+  //         fullName: fullName,
+  //         teacherCode: teacherCode,
+  //         totalAssignedStudents: totalAssignedStudents,
+  //       ),
+  //     ),
+  //   );
+  // }
+
+  void _openClassesFromQuickAccess(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TeacherClassesScreen(
+          teacher: teacher,
+          assignments: assignments,
+          totalAssignedStudents: totalAssignedStudents,
         ),
-      );
-    } else if (index == 2) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => TeacherMessagesScreen(
-            fullName: fullName,
-            teacherCode: teacherCode,
-            assignments: assignments,
-            totalAssignedStudents: totalAssignedStudents,
-          ),
-        ),
-      );
-    } else if (index == 3) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => TeacherProfileScreen(
-            fullName: fullName,
-            teacherCode: teacherCode,
-            assignments: assignments,
-            totalAssignedStudents: totalAssignedStudents,
-          ),
-        ),
-      );
-    }
+      ),
+    );
   }
 
   @override
@@ -110,16 +93,22 @@ class TeacherHomeScreen extends StatelessWidget {
                             CircleAvatar(
                               radius: 24,
                               backgroundColor: Colors.white,
-                              child: Text(
-                                _firstName.isNotEmpty
-                                    ? _firstName[0].toUpperCase()
-                                    : '?',
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w700,
-                                  color: EduTheme.primaryDark,
-                                ),
-                              ),
+                              backgroundImage:
+                                  (imageUrl != null && imageUrl!.isNotEmpty)
+                                      ? NetworkImage(imageUrl!)
+                                      : null,
+                              child: (imageUrl == null || imageUrl!.isEmpty)
+                                  ? Text(
+                                      _firstName.isNotEmpty
+                                          ? _firstName[0].toUpperCase()
+                                          : '?',
+                                      style: const TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w700,
+                                        color: EduTheme.primaryDark,
+                                      ),
+                                    )
+                                  : null,
                             ),
                           ],
                         ),
@@ -238,16 +227,18 @@ class TeacherHomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
 
-                    const _QuickActionCard(
-                      title: 'Create a New Lesson',
-                      subtitle: 'Design your next engaging activity',
-                      icon: Icons.edit_outlined,
-                    ),
-                    const SizedBox(height: 10),
-                    const _QuickActionCard(
+                    // _QuickActionCard(
+                    //   title: 'Create a New Lesson',
+                    //   subtitle: 'Design your next engaging activity',
+                    //   icon: Icons.edit_outlined,
+                    //   onTap: () => _openCreateLessonFlow(context),
+                    // ),
+                    // const SizedBox(height: 10),
+                    _QuickActionCard(
                       title: 'View All Classes',
                       subtitle: 'Manage your class rosters and schedules',
                       icon: Icons.school_outlined,
+                      onTap: () => _openClassesFromQuickAccess(context),
                     ),
                     const SizedBox(height: 10),
                     const _QuickActionCard(
@@ -294,39 +285,11 @@ class TeacherHomeScreen extends StatelessWidget {
           ],
         ),
       ),
-
-      // ===== Bottom Navigation =====
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: EduTheme.primary,
-        unselectedItemColor: EduTheme.textMuted,
-        showUnselectedLabels: true,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.grid_view_rounded),
-            label: 'Dashboard',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.group_rounded),
-            label: 'Classes',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline_rounded),
-            label: 'Messages',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline_rounded),
-            label: 'Profile',
-          ),
-        ],
-        onTap: (index) => _onBottomTap(context, index),
-      ),
     );
   }
 }
 
-// ===== نفس الـ Widgets المساعدة كما هي بدون تغيير =====
+// ===== Widgets مساعدة =====
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;
@@ -380,65 +343,71 @@ class _QuickActionCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final IconData icon;
+  final VoidCallback? onTap;
 
   const _QuickActionCard({
     required this.title,
     required this.subtitle,
     required this.icon,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: EduTheme.primaryDark,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: EduTheme.textMuted,
-                      ),
-                ),
-              ],
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-          ),
-          const SizedBox(width: 12),
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F3FF),
-              borderRadius: BorderRadius.circular(14),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: EduTheme.primaryDark,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: EduTheme.textMuted,
+                        ),
+                  ),
+                ],
+              ),
             ),
-            child: Icon(
-              icon,
-              color: EduTheme.primaryDark,
+            const SizedBox(width: 12),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F3FF),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                icon,
+                color: EduTheme.primaryDark,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
