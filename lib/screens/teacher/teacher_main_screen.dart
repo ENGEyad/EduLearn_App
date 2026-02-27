@@ -55,10 +55,21 @@ class _TeacherMainScreenState extends State<TeacherMainScreen> {
   }
 
   Future<bool> _onWillPop() async {
+<<<<<<< HEAD
     if (_currentIndex != 0) {
       setState(() => _currentIndex = 0);
       return false;
     }
+=======
+    // لو مش في الـ Dashboard → رجعه للـ Dashboard
+    if (_currentIndex != 0) {
+      setState(() {
+        _currentIndex = 0;
+      });
+      return false; // لا تخرج من الشاشة
+    }
+    // في الـ Dashboard → اسمح بالرجوع (يرجع لشاشة التسجيل/تسجيل الدخول)
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     return true;
   }
 
@@ -68,15 +79,52 @@ class _TeacherMainScreenState extends State<TeacherMainScreen> {
       onWillPop: _onWillPop,
       child: Scaffold(
         backgroundColor: EduTheme.background,
+<<<<<<< HEAD
         body: IndexedStack(index: _currentIndex, children: _pages),
         bottomNavigationBar: _TeacherBottomNav(
           currentIndex: _currentIndex,
           onTap: (i) => setState(() => _currentIndex = i),
+=======
+        body: IndexedStack(
+          index: _currentIndex,
+          children: _pages,
+        ),
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: EduTheme.primary,
+          unselectedItemColor: EduTheme.textMuted,
+          showUnselectedLabels: true,
+          onTap: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.grid_view_rounded),
+              label: 'Dashboard',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.group_rounded),
+              label: 'Classes',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.chat_bubble_outline_rounded),
+              label: 'Messages',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline_rounded),
+              label: 'Profile',
+            ),
+          ],
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
         ),
       ),
     );
   }
 }
+<<<<<<< HEAD
 
 // ── Premium Teacher Bottom Navigation Bar ─────────────────────────────────────
 class _TeacherBottomNav extends StatelessWidget {
@@ -184,3 +232,5 @@ class _NavItem {
       required this.outlinedIcon,
       required this.label});
 }
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492

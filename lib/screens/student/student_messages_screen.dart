@@ -1,9 +1,21 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:pusher_reverb_flutter/pusher_reverb_flutter.dart';
+<<<<<<< HEAD
 
 import '../../theme.dart';
 import '../../services/api_service.dart';
+=======
+
+import '../../theme.dart';
+
+// ✅ APIs
+import '../../services/chat_service.dart';
+import '../../services/api_helpers.dart';
+
+// ✅ Reverb service (مشترك)
+import '../../services/reverb_service.dart';
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 
 /// ========= Helpers عامة للتواريخ/الأوقات =========
 
@@ -36,6 +48,18 @@ DateTime? _parseUtcDate(String value) {
   }
 }
 
+<<<<<<< HEAD
+=======
+/// ✅ Helper: فلترة مرنة لأسماء أحداث Reverb/Pusher
+bool _isMessageSentEvent(String name) {
+  final n = name.trim();
+  return n == 'message.sent' ||
+      n == '.message.sent' ||
+      n.endsWith('MessageSent') ||
+      n.contains('MessageSent');
+}
+
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 /// تنسيق وقت على شكل 09:30 AM
 String _formatTimeOfDay(DateTime local) {
   int hour = local.hour;
@@ -115,9 +139,18 @@ bool _isSameCalendarDate(DateTime a, DateTime b) {
   return a.year == b.year && a.month == b.month && a.day == b.day;
 }
 
+<<<<<<< HEAD
 /// ✅ نستخدم هذا المتغيّر لمعرفة المحادثة المفتوحة حالياً للطالب
 /// (نضبطه قبل الدخول للشات مباشرة، وليس فقط داخل StudentChatScreen)
 int? _currentStudentConversationId;
+=======
+/// ======================================================================
+///  ✅ نفس فكرة Teacher: نعرف المحادثة المفتوحة حالياً
+/// ======================================================================
+class _StudentChatState {
+  static int? currentConversationId;
+}
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 
 /// ==================== شاشة قائمة محادثات الطالب ====================
 
@@ -140,11 +173,21 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
   /// محادثات لكل أستاذ حسب teacher_code
   final Map<String, _ConversationMeta> _metaByTeacherCode = {};
 
+<<<<<<< HEAD
   /// خريطة تربط conversationId بـ teacher_code (مهمّة للـ WebSocket)
   final Map<int, String> _teacherCodeByConversationId = {};
 
   /// Laravel Reverb لقائمة المحادثات
   ReverbClient? _reverbClient;
+=======
+  /// conversationId -> teacherCode
+  final Map<int, String> _teacherCodeByConversationId = {};
+
+  /// Reverb
+  ReverbClient? _reverbClient;
+
+  /// القنوات المشترك بها (private-conversation.{id})
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
   final Map<int, Channel> _conversationChannels = {};
 
   String get _studentFullName => (widget.student['full_name'] ?? '').toString();
@@ -162,13 +205,17 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
   void initState() {
     super.initState();
     _chatTeachers = [];
+<<<<<<< HEAD
     debugPrint('StudentMessagesScreen -> student map: ${widget.student}');
     debugPrint('StudentMessagesScreen -> academicId = $_academicId');
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     _loadStudentConversations();
   }
 
   @override
   void dispose() {
+<<<<<<< HEAD
     // إلغاء الاشتراك من كل القنوات
     try {
       for (final ch in _conversationChannels.values) {
@@ -181,10 +228,24 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
       _reverbClient?.disconnect();
     } catch (_) {}
 
+=======
+    // ✅ لا نعمل disconnect هنا (لأننا نستخدم ReverbService كعميل واحد للتطبيق)
+    // فقط نفك الاشتراكات.
+    try {
+      for (final ch in _conversationChannels.values) {
+        try {
+          ch.unsubscribe();
+        } catch (_) {}
+      }
+    } catch (_) {}
+
+    _conversationChannels.clear();
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     super.dispose();
   }
 
   Future<void> _loadStudentConversations() async {
+<<<<<<< HEAD
     if (_academicId.isEmpty) {
       debugPrint(
           'StudentMessagesScreen: academicId is EMPTY, لن يتم طلب المحادثات من الـ API');
@@ -203,6 +264,17 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
       debugPrint(
           'StudentMessagesScreen: fetchStudentConversations returned ${convos.length} conversations');
 
+=======
+    if (_academicId.isEmpty) return;
+
+    setState(() => _loadingConversations = true);
+
+    try {
+      final convos = await ChatService.fetchStudentConversations(
+        academicId: _academicId,
+      );
+
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       final teachers = <String, _ChatTeacher>{};
       final meta = <String, _ConversationMeta>{};
       _teacherCodeByConversationId.clear();
@@ -230,8 +302,12 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
         if (conversationId == null) continue;
 
         final String lastPreview = (c['last_message'] ?? '').toString();
+<<<<<<< HEAD
         final String rawTime =
             (c['last_message_at'] ?? '').toString(); // ISO من الـ API
+=======
+        final String rawTime = (c['last_message_at'] ?? '').toString();
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
         final int unread =
             int.tryParse((c['unread_count'] ?? '0').toString()) ?? 0;
 
@@ -259,9 +335,13 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
       }
 
       final list = teachers.values.toList()
+<<<<<<< HEAD
         ..sort(
           (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
         );
+=======
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 
       setState(() {
         _chatTeachers = list;
@@ -270,6 +350,7 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
           ..addAll(meta);
       });
 
+<<<<<<< HEAD
       // بعد تحميل المحادثات نشترك في كل قنواتها
       await _resubscribeToConversationChannels();
     } catch (e) {
@@ -294,10 +375,34 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
     }
   }
 
+=======
+      await _ensureReverbClient();
+      await _resubscribeToConversationChannels();
+    } catch (e) {
+      debugPrint('Failed to load student conversations: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to load conversations: $e',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _loadingConversations = false);
+    }
+  }
+
+  /// ===================== Reverb (Private Channels) =====================
+
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
   Future<void> _ensureReverbClient() async {
     if (_reverbClient != null) return;
 
     try {
+<<<<<<< HEAD
       final backendUri = Uri.parse(ApiService.rootUrl);
       final host = backendUri.host;
 
@@ -308,6 +413,13 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
       );
 
       await _reverbClient!.connect();
+=======
+      // ✅ عميل واحد عبر ReverbService
+      _reverbClient = await ReverbService.getStudentClient(
+        academicId: _academicId,
+        port: 8080,
+      );
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     } catch (e) {
       debugPrint('StudentMessagesScreen: Failed to init ReverbClient: $e');
     }
@@ -317,6 +429,7 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
     await _ensureReverbClient();
     if (_reverbClient == null) return;
 
+<<<<<<< HEAD
     if (_conversationChannels.containsKey(conversationId)) {
       return; // مشترك مسبقاً
     }
@@ -328,6 +441,18 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
 
       ch.stream.listen(
         (ChannelEvent event) {
+=======
+    if (_conversationChannels.containsKey(conversationId)) return;
+
+    try {
+      final channelName = 'private-conversation.$conversationId';
+      final ch = _reverbClient!.subscribeToChannel(channelName);
+
+      // ✅ listen قبل subscribe (نفس تعديل الأستاذ)
+      ch.stream.listen(
+        (ChannelEvent event) {
+          // debugPrint('StudentMessagesScreen EVENT($conversationId): ${event.eventName}');
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
           _handleConversationChannelEvent(conversationId, event);
         },
         onError: (e) {
@@ -336,6 +461,10 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
         },
       );
 
+<<<<<<< HEAD
+=======
+      ch.subscribe();
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       _conversationChannels[conversationId] = ch;
     } catch (e) {
       debugPrint(
@@ -344,13 +473,19 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
   }
 
   Future<void> _resubscribeToConversationChannels() async {
+<<<<<<< HEAD
     // المحادثات المطلوبة بناءً على الميتا الحالية
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     final neededConversationIds = <int>{};
     for (final meta in _metaByTeacherCode.values) {
       neededConversationIds.add(meta.conversationId);
     }
 
+<<<<<<< HEAD
     // إلغاء الاشتراك من القنوات غير المطلوبة
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     final toRemove = _conversationChannels.keys
         .where((id) => !neededConversationIds.contains(id))
         .toList();
@@ -362,7 +497,10 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
       _conversationChannels.remove(id);
     }
 
+<<<<<<< HEAD
     // الاشتراك في القنوات الجديدة
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     for (final id in neededConversationIds) {
       if (!_conversationChannels.containsKey(id)) {
         await _subscribeToConversationChannel(id);
@@ -371,7 +509,12 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
   }
 
   void _handleConversationChannelEvent(int conversationId, ChannelEvent event) {
+<<<<<<< HEAD
     if (event.eventName != 'message.sent') return;
+=======
+    // ✅ فلترة مرنة بدل شرط صارم
+    if (!_isMessageSentEvent(event.eventName)) return;
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 
     try {
       dynamic raw = event.data;
@@ -394,19 +537,31 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
         return;
       }
 
+<<<<<<< HEAD
       final dynamic messageRaw = payload['message'] ?? payload['msg'];
+=======
+      final dynamic messageRaw = payload['message'] ?? payload['msg'] ?? payload;
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       final dynamic convoRaw = payload['conversation'] ?? payload['conv'];
 
       if (messageRaw is! Map) return;
 
+<<<<<<< HEAD
       final msg = Map<String, dynamic>.from(messageRaw as Map<dynamic, dynamic>);
 
       final conv = (convoRaw is Map)
           ? Map<String, dynamic>.from(convoRaw as Map<dynamic, dynamic>)
+=======
+      final msg = Map<String, dynamic>.from(messageRaw as Map);
+
+      final conv = (convoRaw is Map)
+          ? Map<String, dynamic>.from(convoRaw as Map)
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
           : <String, dynamic>{};
 
       final senderType = (msg['sender_type'] ?? '').toString();
 
+<<<<<<< HEAD
       // نحدد الأستاذ (teacher_code) لهذه المحادثة
       final String? teacherCode = _teacherCodeByConversationId[conversationId];
       if (teacherCode == null || teacherCode.isEmpty) {
@@ -414,6 +569,11 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
       }
 
       // آخر رسالة
+=======
+      final String? teacherCode = _teacherCodeByConversationId[conversationId];
+      if (teacherCode == null || teacherCode.isEmpty) return;
+
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       final String lastPreview =
           (conv['last_message'] ?? msg['body'] ?? '').toString();
 
@@ -421,11 +581,15 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
           (conv['last_message_at'] ?? msg['sent_at'] ?? '').toString();
 
       final DateTime? lastAt = _parseUtcDate(lastTimeRaw);
+<<<<<<< HEAD
 
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       final String timeLabel = lastTimeRaw.isEmpty
           ? ''
           : _formatTimeLabel(lastTimeRaw, forConversation: true);
 
+<<<<<<< HEAD
       // unread من السيرفر (للـ Student)
       // ✅ الأفضل: نعتمد unread_count إن توفر، وإلا unread_for_student
       int unreadFromServer = 0;
@@ -445,13 +609,35 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
       // - غير ذلك -> unread = unreadFromServer
       int unreadClient;
       if (_currentStudentConversationId == conversationId) {
+=======
+      // ✅ unread: إذا السيرفر رجّع unread_for_student ناخذه
+      // وإلا نعمل fallback زي الأستاذ (+1) بدل ما يظل 0
+      int unreadClient;
+      final isOpen = _StudentChatState.currentConversationId == conversationId;
+
+      if (isOpen) {
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
         unreadClient = 0;
       } else if (senderType == 'student') {
         unreadClient = 0;
       } else {
+<<<<<<< HEAD
         unreadClient = unreadFromServer;
       }
 
+=======
+        final serverUnread = int.tryParse(
+              (conv['unread_for_student'] ?? conv['unread_count'] ?? '')
+                  .toString(),
+            ) ??
+            0;
+
+        final prev = _metaByTeacherCode[teacherCode]?.unreadCount ?? 0;
+        unreadClient = serverUnread > 0 ? serverUnread : (prev + 1);
+      }
+
+      if (!mounted) return;
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       setState(() {
         final old = _metaByTeacherCode[teacherCode];
 
@@ -476,10 +662,16 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
   Future<void> _openChatForTeacher(_ChatTeacher t) async {
     int? conversationId = _metaByTeacherCode[t.teacherCode]?.conversationId;
 
+<<<<<<< HEAD
     // لو ما في محادثة موجودة نفتح/ننشيء من الـ API
     if (conversationId == null) {
       try {
         final conv = await ApiService.openStudentConversation(
+=======
+    if (conversationId == null) {
+      try {
+        final conv = await ChatService.openStudentConversation(
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
           academicId: _academicId,
           teacherCode: t.teacherCode,
           classSectionId: null,
@@ -516,7 +708,10 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
           _teacherCodeByConversationId[conversationId!] = t.teacherCode;
         });
 
+<<<<<<< HEAD
         // نشترك في قناة هذه المحادثة الجديدة
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
         await _subscribeToConversationChannel(conversationId!);
       } catch (e) {
         if (!mounted) return;
@@ -533,11 +728,16 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
       }
     }
 
+<<<<<<< HEAD
     // ✅ مهم جداً: نثبت المحادثة المفتوحة قبل الدخول للشات مباشرة
     // حتى لا تزيد unread بالخطأ إذا وصل Event أثناء الانتقال
     _currentStudentConversationId = conversationId;
 
     // بمجرد دخول الطالب للمحادثة نعتبر رسائل الأستاذ مقروءة (من ناحية UI)
+=======
+    _StudentChatState.currentConversationId = conversationId;
+
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     final meta = _metaByTeacherCode[t.teacherCode];
     if (meta != null && (meta.unreadCount ?? 0) > 0) {
       setState(() {
@@ -561,18 +761,28 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
       ),
     );
 
+<<<<<<< HEAD
     // ✅ بعد الرجوع من شاشة الشات، نلغي تحديد المحادثة المفتوحة
     if (_currentStudentConversationId == conversationId) {
       _currentStudentConversationId = null;
     }
 
     // بعد الرجوع من شاشة الشات نعيد تحميل المحادثات
+=======
+    if (_StudentChatState.currentConversationId == conversationId) {
+      _StudentChatState.currentConversationId = null;
+    }
+
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     await _loadStudentConversations();
   }
 
   @override
   Widget build(BuildContext context) {
+<<<<<<< HEAD
     // نرتب الأساتذة حسب آخر رسالة (الأحدث أولاً)
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     final List<_ChatTeacher> orderedTeachers =
         List<_ChatTeacher>.from(_chatTeachers);
 
@@ -583,6 +793,7 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
       final da = ma?.lastMessageAt;
       final db = mb?.lastMessageAt;
 
+<<<<<<< HEAD
       if (da != null && db != null) {
         return db.compareTo(da); // الأحدث أولاً
       }
@@ -590,6 +801,12 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
       if (db != null) return 1;
 
       // لو ما في رسائل من الطرفين نرتبهم بالاسم
+=======
+      if (da != null && db != null) return db.compareTo(da);
+      if (da != null) return -1;
+      if (db != null) return 1;
+
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
 
@@ -639,9 +856,13 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
                 Icons.search_rounded,
                 color: EduTheme.primaryDark,
               ),
+<<<<<<< HEAD
               onPressed: () {
                 // لاحقاً: بحث في الأساتذة / المحادثات
               },
+=======
+              onPressed: () {},
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
             ),
         ],
       ),
@@ -683,7 +904,11 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
 
                 final avatarImageUrl =
                     (t.imageUrl != null && t.imageUrl!.isNotEmpty)
+<<<<<<< HEAD
                         ? ApiService.buildFullMediaUrl(t.imageUrl!)
+=======
+                        ? ApiHelpers.buildFullMediaUrl(t.imageUrl!)
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
                         : null;
 
                 return _MessageItem(
@@ -786,8 +1011,14 @@ class _MessageItem extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 24,
+<<<<<<< HEAD
                 backgroundColor:
                     hasUnread ? EduTheme.primary.withOpacity(0.14) : Colors.white,
+=======
+                backgroundColor: hasUnread
+                    ? EduTheme.primary.withOpacity(0.14)
+                    : Colors.white,
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
                 backgroundImage: avatarImageUrl != null
                     ? NetworkImage(avatarImageUrl!)
                     : null,
@@ -928,11 +1159,24 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
+<<<<<<< HEAD
   // ========= Laravel Reverb (WebSocket) =========
   late ReverbClient _reverbClient;
   Channel? _channel;
 
   String get _academicId => (widget.student['academic_id'] ?? '').toString();
+=======
+  ReverbClient? _reverbClient;
+  Channel? _channel;
+
+  String get _academicId => (widget.student['academic_id'] ??
+          widget.student['academicId'] ??
+          widget.student['student_id'] ??
+          widget.student['id'] ??
+          '')
+      .toString();
+
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
   String get _studentName => (widget.student['full_name'] ?? '').toString();
 
   String get _teacherName => (widget.teacher['full_name'] ?? '').toString();
@@ -943,10 +1187,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   @override
   void initState() {
     super.initState();
+<<<<<<< HEAD
 
     // هذه هي المحادثة المفتوحة حالياً للطالب
     _currentStudentConversationId = widget.conversationId;
 
+=======
+    _StudentChatState.currentConversationId = widget.conversationId;
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     _loadMessages();
     _initReverb();
   }
@@ -954,12 +1202,19 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   Future<void> _loadMessages() async {
     if (_academicId.isEmpty) return;
 
+<<<<<<< HEAD
     setState(() {
       _loading = true;
     });
 
     try {
       final msgs = await ApiService.fetchConversationMessagesAsStudent(
+=======
+    setState(() => _loading = true);
+
+    try {
+      final msgs = await ChatService.fetchConversationMessagesAsStudent(
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
         conversationId: widget.conversationId,
         academicId: _academicId,
       );
@@ -979,6 +1234,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         _messages.add(m);
       }
 
+<<<<<<< HEAD
       setState(() {
         _initialLoaded = true;
       });
@@ -1076,6 +1332,89 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           debugPrint('Failed to handle websocket message: $e');
         }
       });
+=======
+      setState(() => _initialLoaded = true);
+      _scrollToBottom();
+    } catch (e) {
+      debugPrint('Failed to load messages: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString(),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _initReverb() async {
+    try {
+      _reverbClient = await ReverbService.getStudentClient(
+        academicId: _academicId,
+        port: 8080,
+      );
+
+      final channelName = 'private-conversation.${widget.conversationId}';
+      _channel = _reverbClient!.subscribeToChannel(channelName);
+
+      // ✅ listen قبل subscribe (نفس تعديل الأستاذ)
+      _channel!.stream.listen(
+        (ChannelEvent event) {
+          // debugPrint('StudentChatScreen EVENT: ${event.eventName}');
+          if (!_isMessageSentEvent(event.eventName)) return;
+
+          try {
+            dynamic raw = event.data;
+            Map<String, dynamic> payload;
+
+            if (raw is String) {
+              final decoded = jsonDecode(raw);
+              if (decoded is Map<String, dynamic>) {
+                payload = decoded;
+              } else if (decoded is Map) {
+                payload = Map<String, dynamic>.from(decoded);
+              } else {
+                return;
+              }
+            } else if (raw is Map<String, dynamic>) {
+              payload = raw;
+            } else if (raw is Map) {
+              payload = Map<String, dynamic>.from(raw);
+            } else {
+              return;
+            }
+
+            final dynamic maybeMessage = payload['message'] ?? payload;
+            if (maybeMessage is! Map) return;
+
+            final msg = Map<String, dynamic>.from(maybeMessage as Map);
+            final idStr = (msg['id'] ?? '').toString();
+
+            if (idStr.isNotEmpty && _messageIds.contains(idStr)) return;
+
+            if (!mounted) return;
+            setState(() {
+              if (idStr.isNotEmpty) _messageIds.add(idStr);
+              _messages.add(msg);
+            });
+
+            _scrollToBottom();
+          } catch (e) {
+            debugPrint('Failed to handle websocket message: $e');
+          }
+        },
+        onError: (e) {
+          debugPrint('StudentChatScreen: channel error: $e');
+        },
+      );
+
+      _channel!.subscribe();
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     } catch (e) {
       debugPrint('Failed to init ReverbClient: $e');
     }
@@ -1086,7 +1425,11 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     if (text.isEmpty) return;
 
     try {
+<<<<<<< HEAD
       final sent = await ApiService.sendMessageAsStudent(
+=======
+      final sent = await ChatService.sendMessageAsStudent(
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
         conversationId: widget.conversationId,
         academicId: _academicId,
         messageBody: text,
@@ -1095,9 +1438,13 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       final idStr = (sent['id'] ?? '').toString();
 
       setState(() {
+<<<<<<< HEAD
         if (idStr.isNotEmpty) {
           _messageIds.add(idStr);
         }
+=======
+        if (idStr.isNotEmpty) _messageIds.add(idStr);
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
         _messages.add(sent);
       });
 
@@ -1131,19 +1478,31 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   @override
   void dispose() {
+<<<<<<< HEAD
     if (_currentStudentConversationId == widget.conversationId) {
       _currentStudentConversationId = null;
+=======
+    if (_StudentChatState.currentConversationId == widget.conversationId) {
+      _StudentChatState.currentConversationId = null;
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     }
 
     _textController.dispose();
     _scrollController.dispose();
 
+<<<<<<< HEAD
     try {
       _channel?.unsubscribe();
     } catch (_) {}
     try {
       _reverbClient.disconnect();
     } catch (_) {}
+=======
+    // ✅ لا نعمل disconnect — فقط unsubscribe لقناة المحادثة
+    try {
+      _channel?.unsubscribe();
+    } catch (_) {}
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 
     super.dispose();
   }
@@ -1151,6 +1510,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   @override
   Widget build(BuildContext context) {
     final subtitleParts = <String>[];
+<<<<<<< HEAD
     if (_teacherCode.isNotEmpty) {
       subtitleParts.add('Code: $_teacherCode');
     }
@@ -1161,6 +1521,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
     final avatarUrl = _teacherImage != null && _teacherImage!.isNotEmpty
         ? ApiService.buildFullMediaUrl(_teacherImage!)
+=======
+    if (_teacherCode.isNotEmpty) subtitleParts.add('Code: $_teacherCode');
+    if (_studentName.isNotEmpty) subtitleParts.add(_studentName);
+    final subtitle = subtitleParts.join(' • ');
+
+    final avatarUrl = _teacherImage != null && _teacherImage!.isNotEmpty
+        ? ApiHelpers.buildFullMediaUrl(_teacherImage!)
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
         : null;
 
     return Scaffold(
@@ -1174,7 +1542,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             CircleAvatar(
               radius: 20,
               backgroundColor: Colors.white,
+<<<<<<< HEAD
               backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+=======
+              backgroundImage:
+                  avatarUrl != null ? NetworkImage(avatarUrl) : null,
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
               child: avatarUrl == null
                   ? const Icon(
                       Icons.person,
@@ -1229,7 +1602,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         itemCount: _messages.length,
                         itemBuilder: (context, index) {
                           final m = _messages[index];
+<<<<<<< HEAD
                           final senderType = (m['sender_type'] ?? '').toString();
+=======
+                          final senderType =
+                              (m['sender_type'] ?? '').toString();
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
                           final isStudent = senderType == 'student';
 
                           final body = (m['body'] ?? '').toString();
@@ -1238,7 +1616,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                               ? ''
                               : _formatTimeLabel(createdAtRaw);
 
+<<<<<<< HEAD
                           // ===== شريحة اليوم / أمس / التاريخ =====
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
                           String? dateHeader;
                           final dt = _parseUtcDate(createdAtRaw)?.toLocal();
                           if (dt != null) {
@@ -1471,4 +1852,8 @@ class _ChatBubble extends StatelessWidget {
       ),
     );
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492

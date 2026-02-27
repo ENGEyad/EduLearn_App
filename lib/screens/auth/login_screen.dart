@@ -22,13 +22,18 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => isLoading = true);
 
     try {
-      final res = await ApiService.authStudent(
+      final res = await AuthService.authStudent(
         fullName: fullNameCtrl.text.trim(),
         academicId: idCtrl.text.trim(),
       );
 
       final Map<String, dynamic> student =
           (res['student'] as Map<String, dynamic>);
+<<<<<<< HEAD
+=======
+
+      // 👇 قراءة قائمة المواد المعينة من الـ JSON (assigned_subjects)
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       final List<dynamic> assignedSubjects =
           (student['assigned_subjects'] as List<dynamic>?) ?? [];
 

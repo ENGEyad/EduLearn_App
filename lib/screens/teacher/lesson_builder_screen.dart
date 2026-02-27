@@ -10,7 +10,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../theme.dart';
+<<<<<<< HEAD
 import '../../services/api_service.dart';
+=======
+
+// ✅ بدل api_service.dart
+import '../../services/lesson_service.dart';
+import '../../services/api_helpers.dart';
+import '../../services/auth_service.dart';
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 
 class LessonBuilderScreen extends StatefulWidget {
   final String classKey;
@@ -50,7 +58,14 @@ class LessonBuilderScreen extends StatefulWidget {
 
 class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
   final TextEditingController _titleController = TextEditingController();
+<<<<<<< HEAD
   final TextEditingController _contentController = TextEditingController();
+=======
+
+  // ✅ Block editor (بدل content + tokens + preview + pendingMedia)
+  final List<_LessonBlock> _blocks = [];
+  int? _activeTextBlockIndex;
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 
   // 🔹 داخلياً: نحتفظ بموديول واحد فقط (للتوافق مع شاشتك الحالية)
   final List<_ModuleData> _modules = [];
@@ -68,12 +83,15 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
   Duration _recordingElapsed = Duration.zero;
   late final Ticker _ticker;
 
+<<<<<<< HEAD
   // 🔹 Uploaded media objects (معاينة حقيقية)
   final List<_PendingMedia> _pendingMedia = [];
 
   // ✅ معاينة محتوى الطالب (blocks)
   List<Map<String, dynamic>> _previewBlocks = [];
 
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
   // 🔹 Editing state
   bool get _isEditingExisting => widget.existingLessonId != null;
   bool _hasUnsavedChanges = false;
@@ -89,14 +107,22 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
     _ticker = Ticker(_onTick);
 
     _titleController.addListener(_onAnyFieldChanged);
+<<<<<<< HEAD
     _contentController.addListener(_onAnyFieldChanged);
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 
     if (_isEditingExisting) {
       _loadExistingLesson();
     } else {
       _addInitialStructure();
+<<<<<<< HEAD
       _initializing = false;
       _previewBlocks = _buildBlocksFromContent(_contentController.text);
+=======
+      _ensureAtLeastOneTextBlock();
+      _initializing = false;
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     }
   }
 
@@ -104,8 +130,17 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
   void dispose() {
     _ticker.dispose();
     _stopRecordingIfNeededOnDispose();
+<<<<<<< HEAD
     _titleController.dispose();
     _contentController.dispose();
+=======
+
+    for (final b in _blocks) {
+      b.dispose();
+    }
+
+    _titleController.dispose();
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     _recorder.dispose();
     super.dispose();
   }
@@ -120,6 +155,7 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
   void _onAnyFieldChanged() {
     if (_initializing) return;
 
+<<<<<<< HEAD
     setState(() {
       _hasUnsavedChanges = true;
       _previewBlocks = _buildBlocksFromContent(_contentController.text);
@@ -128,11 +164,34 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
     // autosave draft كل ~5 ثواني (بسيط وعملي)
     final now = DateTime.now();
     if (_lastDraftSaveAt == null || now.difference(_lastDraftSaveAt!).inSeconds >= 5) {
+=======
+    setState(() => _hasUnsavedChanges = true);
+
+    final now = DateTime.now();
+    if (_lastDraftSaveAt == null ||
+        now.difference(_lastDraftSaveAt!).inSeconds >= 5) {
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       _lastDraftSaveAt = now;
       _saveLocalDraft(); // لا ننتظر
     }
   }
 
+<<<<<<< HEAD
+=======
+  void _markDirtyAndMaybeAutosave() {
+    if (_initializing) return;
+
+    setState(() => _hasUnsavedChanges = true);
+
+    final now = DateTime.now();
+    if (_lastDraftSaveAt == null ||
+        now.difference(_lastDraftSaveAt!).inSeconds >= 5) {
+      _lastDraftSaveAt = now;
+      _saveLocalDraft();
+    }
+  }
+
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
   // ======== Load existing lesson from local draft or API ========
 
   Future<void> _loadExistingLesson() async {
@@ -141,6 +200,7 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
       final draft = await _loadLocalDraft();
       if (draft != null) {
         _titleController.text = (draft['title'] ?? '').toString();
+<<<<<<< HEAD
         _contentController.text = (draft['content'] ?? '').toString();
         final fs = draft['font_size'];
         if (fs is num) _fontSize = fs.toDouble();
@@ -148,11 +208,55 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
 
         // draft لا يشمل ميديا (حسب تصميمك) — نعيد المعاينة
         _pendingMedia.clear();
+=======
+
+        final fs = draft['font_size'];
+        if (fs is num) _fontSize = fs.toDouble();
+
+        _addInitialStructure();
+
+        _blocks.clear();
+        final rawBlocks = (draft['blocks'] as List?) ?? [];
+        for (final raw in rawBlocks) {
+          if (raw is! Map) continue;
+          final m = raw.cast<String, dynamic>();
+          final type = (m['type'] ?? '').toString();
+          if (type == 'text') {
+            _blocks.add(_LessonBlock.text(
+              id: (m['id'] ?? _id()).toString(),
+              controller: TextEditingController(text: (m['body'] ?? '').toString()),
+            )..attachChangeListener(_onAnyFieldChanged));
+          } else {
+            final kind = _inferKindFromBlockType(type);
+            _blocks.add(_LessonBlock.media(
+              id: (m['id'] ?? _id()).toString(),
+              media: _PendingMedia(
+                id: (m['id'] ?? _id()).toString(),
+                kind: kind,
+                localPath: null,
+                mediaPath: (m['media_path'] ?? '').toString(),
+                remoteUrl: '',
+                mime: m['media_mime']?.toString(),
+                size: m['media_size'] is int
+                    ? m['media_size'] as int
+                    : (m['media_size'] is num ? (m['media_size'] as num).toInt() : null),
+                status: _MediaStatus.ready,
+              ),
+            ));
+          }
+        }
+
+        _ensureAtLeastOneTextBlock();
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
         return;
       }
 
       // 2) Load from API
+<<<<<<< HEAD
       final lesson = await ApiService.fetchLessonDetail(
+=======
+      final lesson = await LessonService.fetchLessonDetail(
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
         lessonId: widget.existingLessonId!,
         teacherCode: widget.teacherCode,
       );
@@ -169,6 +273,7 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
       );
       _selectedModule = _modules.first;
 
+<<<<<<< HEAD
       _pendingMedia.clear();
 
       final blocks = (lesson['blocks'] as List?) ?? [];
@@ -194,11 +299,35 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
         final mediaPath = ApiService.extractMediaPath(mediaValue);
         final mediaUrl = ApiService.buildMediaUrl(mediaPath.isNotEmpty ? mediaPath : mediaValue);
 
+=======
+      _blocks.clear();
+
+      final blocks = (lesson['blocks'] as List?) ?? [];
+      for (final raw in blocks) {
+        if (raw is! Map) continue;
+        final block = raw.cast<String, dynamic>();
+        final type = (block['type'] ?? '').toString();
+
+        if (type == 'text') {
+          final body = (block['body'] ?? '').toString();
+          _blocks.add(
+            _LessonBlock.text(
+              id: _id(),
+              controller: TextEditingController(text: body),
+            )..attachChangeListener(_onAnyFieldChanged),
+          );
+          continue;
+        }
+
+        final mediaValue = ApiHelpers.pickMediaValueFromBlock(block);
+        final mediaPath = ApiHelpers.extractMediaPath(mediaValue);
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
         final mime = block['media_mime']?.toString();
         final size = block['media_size'] is int
             ? block['media_size'] as int
             : (block['media_size'] is num ? (block['media_size'] as num).toInt() : null);
 
+<<<<<<< HEAD
         // ✅ نعيد إدراجها داخل النص كـ token ثابت
         final id = _id();
         buffer.writeln(_MediaToken.encode(id));
@@ -214,10 +343,27 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
             mime: mime,
             size: size,
             status: _MediaStatus.ready,
+=======
+        final id = _id();
+        _blocks.add(
+          _LessonBlock.media(
+            id: id,
+            media: _PendingMedia(
+              id: id,
+              kind: _inferKindFromBlockType(type),
+              localPath: null,
+              mediaPath: mediaPath,
+              remoteUrl: '', // نبني URL وقت العرض
+              mime: mime,
+              size: size,
+              status: _MediaStatus.ready,
+            ),
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
           ),
         );
       }
 
+<<<<<<< HEAD
       _contentController.text = buffer.toString().trim();
       _pendingMedia.addAll(restoredMedia);
 
@@ -227,21 +373,45 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
         final meta = firstBlock['meta'] is Map ? (firstBlock['meta'] as Map).cast<String, dynamic>() : null;
         if (meta != null && meta['font_size'] is num) {
           _fontSize = (meta['font_size'] as num).toDouble();
+=======
+      // font size from first block meta (مثل كودك السابق)
+      if (blocks.isNotEmpty) {
+        final first = blocks.first;
+        if (first is Map) {
+          final firstBlock = first.cast<String, dynamic>();
+          final meta = firstBlock['meta'] is Map
+              ? (firstBlock['meta'] as Map).cast<String, dynamic>()
+              : null;
+          if (meta != null && meta['font_size'] is num) {
+            _fontSize = (meta['font_size'] as num).toDouble();
+          }
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
         }
       }
 
       _addInitialStructure();
+<<<<<<< HEAD
+=======
+      _ensureAtLeastOneTextBlock();
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     } catch (e) {
       _showSnack(
         'Failed to load lesson: ${e.toString().replaceFirst('Exception: ', '')}',
       );
       _addInitialStructure();
+<<<<<<< HEAD
+=======
+      _ensureAtLeastOneTextBlock();
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     } finally {
       if (!mounted) return;
       setState(() {
         _initializing = false;
         _hasUnsavedChanges = false;
+<<<<<<< HEAD
         _previewBlocks = _buildBlocksFromContent(_contentController.text);
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       });
     }
   }
@@ -270,6 +440,7 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
   Future<void> _saveLocalDraft() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+<<<<<<< HEAD
       final draft = {
         'title': _titleController.text,
         'content': _contentController.text,
@@ -279,6 +450,18 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
     } catch (_) {
       // تجاهل — لا نريد إزعاج المستخدم
     }
+=======
+
+      final blocksJson = _blocks.map((b) => b.toDraftJson()).toList();
+
+      final draft = {
+        'title': _titleController.text,
+        'font_size': _fontSize,
+        'blocks': blocksJson,
+      };
+      await prefs.setString(_draftKey, jsonEncode(draft));
+    } catch (_) {}
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
   }
 
   Future<Map<String, dynamic>?> _loadLocalDraft() async {
@@ -314,6 +497,30 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
     _selectedModule ??= _modules.first;
   }
 
+<<<<<<< HEAD
+=======
+  void _ensureAtLeastOneTextBlock() {
+    if (_blocks.isEmpty) {
+      final b = _LessonBlock.text(
+        id: _id(),
+        controller: TextEditingController(),
+      )..attachChangeListener(_onAnyFieldChanged);
+      _blocks.add(b);
+      _activeTextBlockIndex = 0;
+      return;
+    }
+
+    // لو آخر بلوك ميديا، أضف Text بعده عشان المعلم يكمّل كتابة
+    if (_blocks.isNotEmpty && _blocks.last.type == _LessonBlockType.media) {
+      final b = _LessonBlock.text(
+        id: _id(),
+        controller: TextEditingController(),
+      )..attachChangeListener(_onAnyFieldChanged);
+      _blocks.add(b);
+    }
+  }
+
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
   void _showSnack(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
@@ -321,11 +528,26 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
 
   String _id() => DateTime.now().microsecondsSinceEpoch.toString();
 
+<<<<<<< HEAD
   // ======== TEXT HELPER: bold/italic ========
 
   void _insertAroundSelection(String prefix, String suffix) {
     final text = _contentController.text;
     final selection = _contentController.selection;
+=======
+  // ======== TEXT HELPER: bold/italic (على بلوك النص النشط) ========
+
+  void _insertAroundSelection(String prefix, String suffix) {
+    final idx = _activeTextBlockIndex;
+    if (idx == null || idx < 0 || idx >= _blocks.length) return;
+
+    final block = _blocks[idx];
+    if (block.type != _LessonBlockType.text || block.controller == null) return;
+
+    final c = block.controller!;
+    final text = c.text;
+    final selection = c.selection;
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     if (!selection.isValid) return;
 
     final start = selection.start;
@@ -337,13 +559,22 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
 
     final newText = text.replaceRange(start, end, '$prefix$selectedText$suffix');
 
+<<<<<<< HEAD
     _contentController.value = _contentController.value.copyWith(
+=======
+    c.value = c.value.copyWith(
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       text: newText,
       selection: TextSelection(
         baseOffset: start,
         extentOffset: start + prefix.length + selectedText.length + suffix.length,
       ),
     );
+<<<<<<< HEAD
+=======
+
+    _markDirtyAndMaybeAutosave();
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
   }
 
   // =================== Media Picking (Unified UX) ===================
@@ -455,6 +686,18 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
   }
 
   // =================== Media Attachment + Upload ===================
+<<<<<<< HEAD
+=======
+  // ✅ الآن: الميديا تظهر كبـ "Block" داخل المحرر نفسه (بدون Tokens)
+
+  int _insertIndexForNewMediaBlock() {
+    final idx = _activeTextBlockIndex;
+    if (idx == null || idx < 0 || idx >= _blocks.length) {
+      return _blocks.length; // آخر شي
+    }
+    return idx + 1; // تحت بلوك النص النشط مباشرة
+  }
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 
   Future<void> _attachAndUploadMedia({
     required _MediaKind kind,
@@ -462,10 +705,13 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
   }) async {
     final id = _id();
 
+<<<<<<< HEAD
     // 1) إدراج token داخل النص عند موضع المؤشر (ثابت ومضمون)
     _insertMediaTokenAtCursor(id);
 
     // 2) إضافة عنصر pending محلي للمعاينة الفورية
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     final pending = _PendingMedia(
       id: id,
       kind: kind,
@@ -477,6 +723,7 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
       status: _MediaStatus.uploading,
     );
 
+<<<<<<< HEAD
     setState(() {
       _pendingMedia.add(pending);
       _hasUnsavedChanges = true;
@@ -506,17 +753,62 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
   Future<void> _uploadMedia({required String id, required String localPath}) async {
     try {
       final uploadRes = await ApiService.uploadLessonMedia(filePath: localPath);
+=======
+    final insertAt = _insertIndexForNewMediaBlock();
+
+    setState(() {
+      _blocks.insert(insertAt, _LessonBlock.media(id: id, media: pending));
+      // لو كان آخر بلوك ميديا، أضف Text بعده عشان يكمّل كتابة
+      if (insertAt == _blocks.length - 1) {
+        _ensureAtLeastOneTextBlock();
+      } else {
+        // لو البلوك اللي بعده ميديا/نهاية، أضف نص بينهما
+        final nextIndex = insertAt + 1;
+        if (nextIndex >= _blocks.length ||
+            _blocks[nextIndex].type == _LessonBlockType.media) {
+          final t = _LessonBlock.text(
+            id: _id(),
+            controller: TextEditingController(),
+          )..attachChangeListener(_onAnyFieldChanged);
+          _blocks.insert(nextIndex, t);
+        }
+      }
+
+      _hasUnsavedChanges = true;
+    });
+
+    _markDirtyAndMaybeAutosave();
+
+    await _uploadMedia(blockId: id, localPath: localPath);
+  }
+
+  Future<void> _uploadMedia({
+    required String blockId,
+    required String localPath,
+  }) async {
+    try {
+      final uploadRes = await LessonService.uploadLessonMedia(
+        filePath: localPath,
+      );
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 
       final mediaPath = (uploadRes['media_path'] ?? '').toString().trim();
       final mediaUrl = (uploadRes['media_url'] ?? '').toString().trim();
       final mime = uploadRes['media_mime']?.toString();
       final size = uploadRes['media_size'] is int
           ? uploadRes['media_size'] as int
+<<<<<<< HEAD
           : (uploadRes['media_size'] is num ? (uploadRes['media_size'] as num).toInt() : null);
+=======
+          : (uploadRes['media_size'] is num
+              ? (uploadRes['media_size'] as num).toInt()
+              : null);
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 
       if (!mounted) return;
 
       setState(() {
+<<<<<<< HEAD
         final idx = _pendingMedia.indexWhere((m) => m.id == id);
         if (idx != -1) {
           final old = _pendingMedia[idx];
@@ -531,10 +823,32 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
         _previewBlocks = _buildBlocksFromContent(_contentController.text);
         _hasUnsavedChanges = true;
       });
+=======
+        final idx = _blocks.indexWhere((b) => b.id == blockId);
+        if (idx != -1 && _blocks[idx].type == _LessonBlockType.media) {
+          final old = _blocks[idx].media!;
+          _blocks[idx] = _blocks[idx].copyWithMedia(
+            old.copyWith(
+              mediaPath: mediaPath,
+              remoteUrl: mediaUrl.isNotEmpty
+                  ? mediaUrl
+                  : (mediaPath.isNotEmpty ? ApiHelpers.buildMediaUrl(mediaPath) : ''),
+              mime: mime,
+              size: size,
+              status: _MediaStatus.ready,
+            ),
+          );
+        }
+        _hasUnsavedChanges = true;
+      });
+
+      _markDirtyAndMaybeAutosave();
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
+<<<<<<< HEAD
         final idx = _pendingMedia.indexWhere((m) => m.id == id);
         if (idx != -1) {
           _pendingMedia[idx] = _pendingMedia[idx].copyWith(status: _MediaStatus.failed);
@@ -546,6 +860,24 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
   }
 
   // =================== Voice Recording (WhatsApp-like practical) ===================
+=======
+        final idx = _blocks.indexWhere((b) => b.id == blockId);
+        if (idx != -1 && _blocks[idx].type == _LessonBlockType.media) {
+          final old = _blocks[idx].media!;
+          _blocks[idx] = _blocks[idx].copyWithMedia(
+            old.copyWith(status: _MediaStatus.failed),
+          );
+        }
+      });
+
+      _showSnack(
+        'Failed to upload media: ${e.toString().replaceFirst('Exception: ', '')}',
+      );
+    }
+  }
+
+  // =================== Voice Recording ===================
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 
   Future<void> _toggleVoiceRecording() async {
     if (_isRecording) {
@@ -564,7 +896,12 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
       }
 
       final tempDir = Directory.systemTemp;
+<<<<<<< HEAD
       final filePath = '${tempDir.path}/lesson_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+=======
+      final filePath =
+          '${tempDir.path}/lesson_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 
       await _recorder.start(
         const RecordConfig(
@@ -581,7 +918,13 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
 
       setState(() => _isRecording = true);
     } catch (e) {
+<<<<<<< HEAD
       _showSnack('Failed to start recording: ${e.toString().replaceFirst('Exception: ', '')}');
+=======
+      _showSnack(
+        'Failed to start recording: ${e.toString().replaceFirst('Exception: ', '')}',
+      );
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     }
   }
 
@@ -595,19 +938,32 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
 
       if (path == null) return;
 
+<<<<<<< HEAD
       // نضيف كتسجيل صوتي (audio) — نفس مسار الصوت
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       await _attachAndUploadMedia(kind: _MediaKind.voice, localPath: path);
     } catch (e) {
       _ticker.stop();
       setState(() => _isRecording = false);
       _recordingStartedAt = null;
+<<<<<<< HEAD
       _showSnack('Failed to stop recording: ${e.toString().replaceFirst('Exception: ', '')}');
+=======
+      _showSnack(
+        'Failed to stop recording: ${e.toString().replaceFirst('Exception: ', '')}',
+      );
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     }
   }
 
   Future<void> _cancelRecording() async {
     try {
+<<<<<<< HEAD
       await _recorder.stop(); // stop بدون attach
+=======
+      await _recorder.stop();
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
     } catch (_) {}
     _ticker.stop();
     if (!mounted) return;
@@ -621,7 +977,10 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
 
   void _stopRecordingIfNeededOnDispose() {
     if (_isRecording) {
+<<<<<<< HEAD
       // best-effort
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       _recorder.stop();
       _ticker.stop();
     }
@@ -629,17 +988,106 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
 
   // =================== SAVE LESSON ===================
 
+<<<<<<< HEAD
+=======
+  bool _hasAnyMeaningfulContent() {
+    for (final b in _blocks) {
+      if (b.type == _LessonBlockType.text) {
+        final t = b.controller?.text.trim() ?? '';
+        if (t.isNotEmpty) return true;
+      } else {
+        return true; // أي ميديا تعتبر محتوى
+      }
+    }
+    return false;
+  }
+
+  bool _hasUploadingMedia() {
+    return _blocks.any((b) =>
+        b.type == _LessonBlockType.media &&
+        b.media != null &&
+        b.media!.status == _MediaStatus.uploading);
+  }
+
+  bool _hasFailedMedia() {
+    return _blocks.any((b) =>
+        b.type == _LessonBlockType.media &&
+        b.media != null &&
+        b.media!.status == _MediaStatus.failed);
+  }
+
+  List<Map<String, dynamic>> _buildBlocksPayload() {
+    final blocks = <Map<String, dynamic>>[];
+    int position = 1;
+
+    for (final b in _blocks) {
+      if (b.type == _LessonBlockType.text) {
+        final t = (b.controller?.text ?? '').trim();
+        if (t.isEmpty) continue;
+
+        blocks.add({
+          'id': null,
+          'type': 'text',
+          'body': t,
+          'caption': null,
+          'media_url': null,
+          'media_path': null,
+          'media_mime': null,
+          'media_size': null,
+          'media_duration': null,
+          'module_id': _selectedModule?.tempId,
+          'topic_id': null,
+          'position': position++,
+          'meta': {'font_size': _fontSize},
+        });
+        continue;
+      }
+
+      final media = b.media;
+      if (media == null) continue;
+
+      final type = media.kind == _MediaKind.image
+          ? 'image'
+          : media.kind == _MediaKind.video
+              ? 'video'
+              : 'audio'; // audio + voice
+
+      blocks.add({
+        'id': null,
+        'type': type,
+        'body': null,
+        'caption': null,
+        'media_url': null,
+        'media_path': media.mediaPath.isNotEmpty ? media.mediaPath : null,
+        'media_mime': media.mime,
+        'media_size': media.size,
+        'media_duration': null,
+        'module_id': _selectedModule?.tempId,
+        'topic_id': null,
+        'position': position++,
+        'meta': {'font_size': _fontSize},
+      });
+    }
+
+    return blocks;
+  }
+
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
   Future<void> _saveLesson({required bool publish}) async {
     try {
       FocusScope.of(context).unfocus();
       final title = _titleController.text.trim();
+<<<<<<< HEAD
       final content = _contentController.text;
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 
       if (title.isEmpty) {
         _showSnack('Please enter a lesson title.');
         return;
       }
 
+<<<<<<< HEAD
       // منع حفظ ميديا تحت الرفع أو فاشلة
       final uploading = _pendingMedia.any((m) => m.status == _MediaStatus.uploading);
       if (uploading) {
@@ -648,24 +1096,40 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
       }
       final failed = _pendingMedia.any((m) => m.status == _MediaStatus.failed);
       if (failed) {
+=======
+      if (_hasUploadingMedia()) {
+        _showSnack('Please wait until media upload finishes.');
+        return;
+      }
+
+      if (_hasFailedMedia()) {
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
         _showSnack('Some media failed to upload. Remove or retry before saving.');
         return;
       }
 
+<<<<<<< HEAD
       if (content.trim().isEmpty && _pendingMedia.isEmpty) {
+=======
+      if (!_hasAnyMeaningfulContent()) {
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
         _showSnack('Please add some content or media to the lesson.');
         return;
       }
 
       setState(() => _isSaving = true);
 
+<<<<<<< HEAD
       // ✅ الآن: لا نرسل modules/topics (حل نهائي) — نحافظ فقط للـ API إن كانت تتطلب وجودها
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       final modulesPayload = _modules
           .map((m) => {'id': m.tempId, 'title': m.title, 'position': m.position})
           .toList();
 
       final topicsPayload = <Map<String, dynamic>>[];
 
+<<<<<<< HEAD
       // ✅ بناء blocks يعتمد على tokens + pending media (ثابت)
       final blocksPayload = _buildBlocksFromContent(content);
 
@@ -673,6 +1137,14 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
         teacherCode: widget.teacherCode,
         assignmentId: widget.assignmentId,
         classModuleId: widget.moduleId, // ✅ هذا هو class_module_id
+=======
+      final blocksPayload = _buildBlocksPayload();
+
+      await LessonService.saveLesson(
+        teacherCode: widget.teacherCode,
+        assignmentId: widget.assignmentId,
+        classModuleId: widget.moduleId,
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
         classSectionId: widget.classSectionId,
         subjectId: widget.subjectId,
         lessonId: widget.existingLessonId,
@@ -685,7 +1157,10 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
 
       _showSnack(publish ? 'Lesson published.' : 'Lesson saved as draft.');
 
+<<<<<<< HEAD
       _pendingMedia.clear();
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       await _clearLocalDraft();
 
       if (!mounted) return;
@@ -728,16 +1203,31 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
       appBar: AppBar(
         title: const Text('Lesson Builder'),
         leading: IconButton(
+<<<<<<< HEAD
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: EduTheme.primaryDark),
+=======
+          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              color: EduTheme.primaryDark),
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
           onPressed: _handleBack,
         ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 18.0),
             child: Text(
+<<<<<<< HEAD
               _isEditingExisting ? (_hasUnsavedChanges ? 'Editing...' : 'Loaded') : 'New Lesson',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: _hasUnsavedChanges ? Colors.orange : EduTheme.primaryDark,
+=======
+              _isEditingExisting
+                  ? (_hasUnsavedChanges ? 'Editing...' : 'Loaded')
+                  : 'New Lesson',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: _hasUnsavedChanges
+                        ? Colors.orange
+                        : EduTheme.primaryDark,
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
                     fontWeight: FontWeight.w600,
                   ),
             ),
@@ -763,14 +1253,22 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
                   Text(
                     'Class: ${widget.classKey} • Students: ${widget.studentsCount}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
+<<<<<<< HEAD
                           color: EduTheme.primaryDark.withValues(alpha: 0.6),
+=======
+                          color: EduTheme.primaryDark.withOpacity(0.6),
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
                         ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Module: ${widget.moduleTitle}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
+<<<<<<< HEAD
                           color: EduTheme.primaryDark.withValues(alpha: 0.6),
+=======
+                          color: EduTheme.primaryDark.withOpacity(0.6),
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
                         ),
                   ),
                   const SizedBox(height: 12),
@@ -778,7 +1276,10 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
                     controller: _titleController,
                     decoration: const InputDecoration(
                       labelText: 'Lesson Title',
+<<<<<<< HEAD
                       hintText: 'e.g. Introduction to Photosynthesis',
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -808,6 +1309,7 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
                         _buildToolbar(),
                         const SizedBox(height: 10),
 
+<<<<<<< HEAD
                         TextField(
                           controller: _contentController,
                           maxLines: null,
@@ -838,6 +1340,15 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
+=======
+                        // ✅ المحرر نفسه صار يعرض النص + الميديا بنفس شكل معاينة الطالب
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
                             boxShadow: const [
                               BoxShadow(
                                 color: Color(0x11000000),
@@ -849,14 +1360,22 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+<<<<<<< HEAD
                               for (final block in _previewBlocks) ...[
                                 _buildPreviewBlock(block),
                                 const SizedBox(height: 18),
+=======
+                              for (int i = 0; i < _blocks.length; i++) ...[
+                                _buildEditorBlock(i, _blocks[i]),
+                                if (i != _blocks.length - 1)
+                                  const SizedBox(height: 16),
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
                               ],
                             ],
                           ),
                         ),
 
+<<<<<<< HEAD
                         if (_pendingMedia.isNotEmpty) ...[
                           const SizedBox(height: 16),
                           Text(
@@ -874,6 +1393,9 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
 
                         const SizedBox(height: 12),
 
+=======
+                        const SizedBox(height: 12),
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
                         SizedBox(
                           width: double.infinity,
                           child: TextButton.icon(
@@ -909,7 +1431,11 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
+<<<<<<< HEAD
             color: Colors.black.withValues(alpha: 0.04),
+=======
+            color: Colors.black.withOpacity(0.04),
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
             blurRadius: 12,
             offset: const Offset(0, 2),
           ),
@@ -925,10 +1451,14 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
               icon: const Icon(Icons.attach_file_rounded),
               onPressed: _openMediaPickerSheet,
             ),
+<<<<<<< HEAD
 
             const SizedBox(width: 8),
 
             // ✅ تسجيل صوت محسّن + مؤقت + إلغاء سريع
+=======
+            const SizedBox(width: 8),
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
             Row(
               children: [
                 ElevatedButton.icon(
@@ -941,7 +1471,14 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
                       borderRadius: BorderRadius.circular(20),
                     ),
                   ),
+<<<<<<< HEAD
                   icon: Icon(_isRecording ? Icons.stop_rounded : Icons.mic_rounded, size: 18),
+=======
+                  icon: Icon(
+                    _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
+                    size: 18,
+                  ),
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
                   label: Text(_isRecording ? 'Stop' : 'Voice'),
                 ),
                 if (_isRecording) ...[
@@ -961,9 +1498,13 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
                 ],
               ],
             ),
+<<<<<<< HEAD
 
             const SizedBox(width: 12),
 
+=======
+            const SizedBox(width: 12),
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
             IconButton(
               tooltip: 'Bold',
               icon: const Icon(Icons.format_bold_rounded),
@@ -974,9 +1515,13 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
               icon: const Icon(Icons.format_italic_rounded),
               onPressed: () => _insertAroundSelection('_', '_'),
             ),
+<<<<<<< HEAD
 
             const SizedBox(width: 12),
 
+=======
+            const SizedBox(width: 12),
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
             Row(
               children: [
                 const Text('A'),
@@ -986,7 +1531,14 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
                   max: 24,
                   divisions: 6,
                   label: _fontSize.toStringAsFixed(0),
+<<<<<<< HEAD
                   onChanged: (v) => setState(() => _fontSize = v),
+=======
+                  onChanged: (v) {
+                    setState(() => _fontSize = v);
+                    _markDirtyAndMaybeAutosave();
+                  },
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
                 ),
               ],
             ),
@@ -1002,6 +1554,7 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
     return '$mm:$ss';
   }
 
+<<<<<<< HEAD
   // ========= Preview rendering =========
 
   TextSpan _buildStyledTextSpan(String body, double fontSize) {
@@ -1090,10 +1643,36 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
     if (url.isEmpty) return const SizedBox.shrink();
 
     final caption = (block['caption'] ?? '').toString();
+=======
+  // ========= Editor rendering =========
+
+  Widget _buildEditorBlock(int index, _LessonBlock block) {
+    if (block.type == _LessonBlockType.text) {
+      final c = block.controller!;
+      return TextField(
+        controller: c,
+        maxLines: null,
+        keyboardType: TextInputType.multiline,
+        style: TextStyle(fontSize: _fontSize, height: 1.4),
+        decoration: const InputDecoration(
+          hintText: 'Write here...',
+          border: OutlineInputBorder(),
+        ),
+        onTap: () => _activeTextBlockIndex = index,
+        onChanged: (_) => _markDirtyAndMaybeAutosave(),
+      );
+    }
+
+    // Media block
+    final media = block.media!;
+    final isUploading = media.status == _MediaStatus.uploading;
+    final isFailed = media.status == _MediaStatus.failed;
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+<<<<<<< HEAD
         LessonVideoPlayer(url: url),
         if (caption.isNotEmpty) ...[
           const SizedBox(height: 6),
@@ -1104,10 +1683,62 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
                 ),
           ),
         ],
+=======
+        Row(
+          children: [
+            Icon(_iconForKind(media.kind), color: EduTheme.primaryDark),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _labelForKind(media.kind),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: EduTheme.primaryDark,
+                    ),
+              ),
+            ),
+            if (isUploading)
+              const SizedBox(
+                height: 16,
+                width: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            if (isFailed) ...[
+              const SizedBox(width: 8),
+              const Icon(Icons.error_outline_rounded, color: Colors.red),
+              const SizedBox(width: 6),
+              TextButton(
+                onPressed: () async {
+                  final lp = media.localPath;
+                  if (lp == null || lp.isEmpty) return;
+                  setState(() {
+                    final idx = _blocks.indexWhere((b) => b.id == block.id);
+                    if (idx != -1) {
+                      final old = _blocks[idx].media!;
+                      _blocks[idx] = _blocks[idx].copyWithMedia(
+                        old.copyWith(status: _MediaStatus.uploading),
+                      );
+                    }
+                  });
+                  await _uploadMedia(blockId: block.id, localPath: lp);
+                },
+                child: const Text('Retry'),
+              ),
+            ],
+            IconButton(
+              icon: const Icon(Icons.delete_outline_rounded),
+              onPressed: () => _removeBlockAt(index),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _buildMediaPreview(media),
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       ],
     );
   }
 
+<<<<<<< HEAD
   Widget _buildPreviewAudioBlock(Map<String, dynamic> block) {
     final value = ApiService.pickMediaValueFromBlock(block);
     final path = ApiService.extractMediaPath(value);
@@ -1209,6 +1840,106 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
     }
 
     return blocks;
+=======
+  void _removeBlockAt(int index) {
+    setState(() {
+      final removed = _blocks.removeAt(index);
+      removed.dispose();
+
+      if (_activeTextBlockIndex != null) {
+        if (_activeTextBlockIndex == index) {
+          _activeTextBlockIndex = null;
+        } else if (_activeTextBlockIndex! > index) {
+          _activeTextBlockIndex = _activeTextBlockIndex! - 1;
+        }
+      }
+
+      _ensureAtLeastOneTextBlock();
+      _hasUnsavedChanges = true;
+    });
+
+    _markDirtyAndMaybeAutosave();
+  }
+
+  Widget _buildMediaPreview(_PendingMedia media) {
+    final localPath = media.localPath;
+    if (localPath != null && localPath.isNotEmpty && File(localPath).existsSync()) {
+      final f = File(localPath);
+
+      if (media.kind == _MediaKind.image) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.file(
+            f,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const Text('Failed to preview image'),
+          ),
+        );
+      }
+
+      if (media.kind == _MediaKind.video) {
+        return LessonVideoPlayer(url: 'file://$localPath');
+      }
+
+      return LessonAudioPlayer(url: 'file://$localPath');
+    }
+
+    // remote
+    final url = media.remoteUrl.isNotEmpty
+        ? media.remoteUrl
+        : (media.mediaPath.isNotEmpty ? ApiHelpers.buildMediaUrl(media.mediaPath) : '');
+
+    if (url.isEmpty) {
+      return Text(
+        media.status == _MediaStatus.failed ? 'Upload failed.' : 'Waiting for upload...',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: EduTheme.primaryDark.withOpacity(0.6),
+            ),
+      );
+    }
+
+    if (media.kind == _MediaKind.image) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.network(
+          url,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const Text('Failed to load image'),
+        ),
+      );
+    }
+
+    if (media.kind == _MediaKind.video) {
+      return LessonVideoPlayer(url: url);
+    }
+
+    return LessonAudioPlayer(url: url);
+  }
+
+  IconData _iconForKind(_MediaKind k) {
+    switch (k) {
+      case _MediaKind.image:
+        return Icons.image_rounded;
+      case _MediaKind.video:
+        return Icons.videocam_rounded;
+      case _MediaKind.audio:
+      case _MediaKind.voice:
+        return Icons.audiotrack_rounded;
+    }
+  }
+
+  String _labelForKind(_MediaKind k) {
+    switch (k) {
+      case _MediaKind.image:
+        return 'Image';
+      case _MediaKind.video:
+        return 'Video';
+      case _MediaKind.audio:
+        return 'Audio';
+      case _MediaKind.voice:
+        return 'Voice';
+    }
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
   }
 
   Widget _buildBottomButtons(double bottomInset) {
@@ -1254,6 +1985,7 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
       ),
     );
   }
+<<<<<<< HEAD
 
   // ===== Teacher preview cards =====
 
@@ -1430,6 +2162,8 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
 
     return LessonAudioPlayer(url: url);
   }
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 }
 
 // ======== Helper internal models ========
@@ -1453,9 +2187,15 @@ class _PendingMedia {
   final String id;
   final _MediaKind kind;
 
+<<<<<<< HEAD
   final String? localPath; // local preview (optional)
   final String mediaPath; // lessons/...
   final String remoteUrl; // full url if provided
+=======
+  final String? localPath;
+  final String mediaPath;
+  final String remoteUrl;
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
   final String? mime;
   final int? size;
   final _MediaStatus status;
@@ -1506,6 +2246,7 @@ class _PendingMedia {
   }
 }
 
+<<<<<<< HEAD
 // ======== Token helper (replaces old placeholders) ========
 
 class _MediaToken {
@@ -1518,6 +2259,86 @@ class _MediaToken {
     final m = regex.firstMatch(token);
     if (m == null) return null;
     return m.group(1);
+=======
+enum _LessonBlockType { text, media }
+
+class _LessonBlock {
+  final String id;
+  final _LessonBlockType type;
+  final TextEditingController? controller;
+  final _PendingMedia? media;
+
+  _LessonBlock._({
+    required this.id,
+    required this.type,
+    required this.controller,
+    required this.media,
+  });
+
+  factory _LessonBlock.text({
+    required String id,
+    required TextEditingController controller,
+  }) {
+    return _LessonBlock._(
+      id: id,
+      type: _LessonBlockType.text,
+      controller: controller,
+      media: null,
+    );
+  }
+
+  factory _LessonBlock.media({
+    required String id,
+    required _PendingMedia media,
+  }) {
+    return _LessonBlock._(
+      id: id,
+      type: _LessonBlockType.media,
+      controller: null,
+      media: media,
+    );
+  }
+
+  void attachChangeListener(VoidCallback listener) {
+    if (controller == null) return;
+    controller!.addListener(listener);
+  }
+
+  void dispose() {
+    controller?.dispose();
+  }
+
+  _LessonBlock copyWithMedia(_PendingMedia newMedia) {
+    return _LessonBlock._(
+      id: id,
+      type: type,
+      controller: controller,
+      media: newMedia,
+    );
+  }
+
+  Map<String, dynamic> toDraftJson() {
+    if (type == _LessonBlockType.text) {
+      return {
+        'id': id,
+        'type': 'text',
+        'body': controller?.text ?? '',
+      };
+    }
+    final m = media!;
+    final typeStr = m.kind == _MediaKind.image
+        ? 'image'
+        : m.kind == _MediaKind.video
+            ? 'video'
+            : 'audio';
+    return {
+      'id': id,
+      'type': typeStr,
+      'media_path': m.mediaPath,
+      'media_mime': m.mime,
+      'media_size': m.size,
+    };
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
   }
 }
 
@@ -1598,8 +2419,15 @@ class _LessonVideoPlayerState extends State<LessonVideoPlayer> {
             child: IconButton(
               iconSize: 48,
               icon: Icon(
+<<<<<<< HEAD
                 c.value.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill,
                 color: Colors.white.withValues(alpha: 0.9),
+=======
+                c.value.isPlaying
+                    ? Icons.pause_circle_filled
+                    : Icons.play_circle_fill,
+                color: Colors.white.withOpacity(0.9),
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
               ),
               onPressed: () {
                 setState(() {
@@ -1645,7 +2473,10 @@ class _LessonAudioPlayerState extends State<LessonAudioPlayer> {
 
   Future<void> _setup() async {
     try {
+<<<<<<< HEAD
       // listeners أولاً
+=======
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
       _player.onDurationChanged.listen((d) {
         if (!mounted) return;
         setState(() {
@@ -1746,7 +2577,11 @@ class _LessonAudioPlayerState extends State<LessonAudioPlayer> {
   }
 }
 
+<<<<<<< HEAD
 // ======== Minimal ticker (بدون إضافة package) ========
+=======
+// ======== Minimal ticker ========
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
 
 class Ticker {
   Ticker(this.onTick);
@@ -1780,4 +2615,8 @@ class Ticker {
       onTick(elapsed);
     }
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 6a86bc1197f81540b5d636365760ead1205a1492
