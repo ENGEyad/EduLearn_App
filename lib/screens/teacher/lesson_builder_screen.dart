@@ -16,6 +16,25 @@ import '../../services/lesson_service.dart';
 import '../../services/api_helpers.dart';
 import '../../services/auth_service.dart';
 
+// ✅ AI Question Model
+class GeneratedQuestion {
+  final String id;
+  String type; // multiple_choice, true_false, fill_blank, matching, flashcard
+  String questionText;
+  List<String>? options;
+  String answer;
+  bool isEditing;
+
+  GeneratedQuestion({
+    required this.id,
+    required this.type,
+    required this.questionText,
+    this.options,
+    required this.answer,
+    this.isEditing = false,
+  });
+}
+
 class LessonBuilderScreen extends StatefulWidget {
   final String classKey;
   final String classTitle;
@@ -79,6 +98,10 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
   bool get _isEditingExisting => widget.existingLessonId != null;
   bool _hasUnsavedChanges = false;
   bool _initializing = true;
+
+  // 🔹 AI Generated Questions
+  List<GeneratedQuestion> _aiQuestions = [];
+  bool _isGeneratingAI = false;
 
   // ========= Draft autosave debounce =========
   DateTime? _lastDraftSaveAt;
@@ -480,6 +503,14 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
                     await _pickAudioFile();
                   },
                 ),
+                _sheetItem(
+                  icon: Icons.picture_as_pdf_rounded,
+                  title: 'PDF Document',
+                  onTap: () async {
+                    Navigator.of(ctx).pop();
+                    await _pickPDF();
+                  },
+                ),
               ],
             ),
           ),
@@ -526,6 +557,17 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
     final path = result.files.single.path;
     if (path == null) return;
     await _attachAndUploadMedia(kind: _MediaKind.audio, localPath: path);
+  }
+
+  Future<void> _pickPDF() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+    if (result == null || result.files.isEmpty) return;
+    final path = result.files.single.path;
+    if (path == null) return;
+    await _attachAndUploadMedia(kind: _MediaKind.pdf, localPath: path);
   }
 
   // =================== Media Attachment + Upload ===================
@@ -790,7 +832,9 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
           ? 'image'
           : media.kind == _MediaKind.video
               ? 'video'
-              : 'audio'; // audio + voice
+              : media.kind == _MediaKind.pdf
+                  ? 'file'
+                  : 'audio'; // audio + voice
 
       blocks.add({
         'id': null,
@@ -929,50 +973,6 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.classTitle,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: EduTheme.primaryDark,
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Class: ${widget.classKey} • Students: ${widget.studentsCount}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: EduTheme.primaryDark.withOpacity(0.6),
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Module: ${widget.moduleTitle}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: EduTheme.primaryDark.withOpacity(0.6),
-                        ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Lesson Title',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Lesson Content',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: EduTheme.primaryDark,
-                        ),
-                  ),
-                ],
-              ),
-            ),
             Expanded(
               child: Container(
                 decoration: const BoxDecoration(
@@ -986,10 +986,56 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // 1️⃣ Step 1: Lesson Metadata
+                        _buildSectionHeader(context, "Step 1: Lesson Details"),
+                        Card(
+                          elevation: 2,
+                          color: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                TextField(
+                                  controller: _titleController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Lesson Title',
+                                    prefixIcon: Icon(Icons.title),
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildStaticField('Subject', widget.classTitle, Icons.book),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildStaticField('Grade', widget.classKey, Icons.grade),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    icon: const Icon(Icons.auto_awesome, size: 18),
+                                    label: const Text('Generate AI Suggestions'),
+                                    onPressed: () => _showSnack('AI suggestion feature coming soon.'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // 2️⃣ Step 2: Source Material (The Editor)
+                        _buildSectionHeader(context, "Step 2: Upload Lesson Content"),
                         _buildToolbar(),
                         const SizedBox(height: 10),
-
-                        // ✅ المحرر نفسه صار يعرض النص + الميديا بنفس شكل معاينة الطالب
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(14),
@@ -997,41 +1043,39 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x11000000),
-                                blurRadius: 10,
-                                offset: Offset(0, 4),
-                              ),
+                              BoxShadow(color: Color(0x11000000), blurRadius: 10, offset: Offset(0, 4)),
                             ],
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              for (int i = 0; i < _blocks.length; i++) ...[
-                                _buildEditorBlock(i, _blocks[i]),
-                                if (i != _blocks.length - 1)
-                                  const SizedBox(height: 16),
-                              ],
+                              if (_blocks.isEmpty)
+                                Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 20),
+                                    child: Column(
+                                      children: [
+                                        Icon(Icons.cloud_upload_outlined, size: 48, color: Colors.grey.shade400),
+                                        const SizedBox(height: 8),
+                                        Text("No content uploaded yet", style: TextStyle(color: Colors.grey.shade600)),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              else
+                                for (int i = 0; i < _blocks.length; i++) ...[
+                                  _buildEditorBlock(i, _blocks[i]),
+                                  if (i != _blocks.length - 1) const SizedBox(height: 16),
+                                ],
                             ],
                           ),
                         ),
 
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: TextButton.icon(
-                            style: TextButton.styleFrom(
-                              backgroundColor: const Color(0xFFE8F6FF),
-                              foregroundColor: EduTheme.primaryDark,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                            onPressed: () {
-                              _showSnack('Knowledge Check will be configured later.');
-                            },
-                            icon: const Icon(Icons.quiz_outlined),
-                            label: const Text('Add Knowledge Check (coming soon)'),
-                          ),
-                        ),
+                        const SizedBox(height: 24),
+
+                        // 3️⃣ Step 3: AI Assessment Review
+                        _buildSectionHeader(context, "Step 3: AI Assessment Review"),
+                        _buildAIQuestionsSection(),
                       ],
                     ),
                   ),
@@ -1043,6 +1087,182 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0, left: 4),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: EduTheme.primaryDark,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStaticField(String label, String value, IconData icon) {
+    return TextFormField(
+      initialValue: value,
+      readOnly: true,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, size: 20),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        border: const OutlineInputBorder(),
+      ),
+      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+    );
+  }
+
+  Widget _buildAIQuestionsSection() {
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.psychology),
+            label: const Text('Generate Exercises & Exam Questions'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: EduTheme.primaryDark,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: _isGeneratingAI ? null : _generateAIQuestions,
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (_isGeneratingAI)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Column(
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text("AI is generating questions from your content..."),
+                ],
+              ),
+            ),
+          )
+        else if (_aiQuestions.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Text("No questions generated yet. Click above to start.",
+                  style: TextStyle(color: Colors.grey.shade600)),
+            ),
+          )
+        else
+          ..._aiQuestions.asMap().entries.map((entry) => _buildAIQuestionCard(entry.value, entry.key)),
+      ],
+    );
+  }
+
+  Widget _buildAIQuestionCard(GeneratedQuestion q, int index) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ExpansionTile(
+        leading: _getQuestionIcon(q.type),
+        title: Text(q.questionText, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+        subtitle: Text('Type: ${q.type.replaceAll('_', ' ').toUpperCase()}', style: const TextStyle(fontSize: 10)),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(icon: const Icon(Icons.edit, size: 18, color: Colors.blue), onPressed: () {}),
+            IconButton(
+              icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+              onPressed: () => setState(() => _aiQuestions.removeAt(index)),
+            ),
+            const Icon(Icons.expand_more),
+          ],
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (q.options != null) ...[
+                  const Text("Options:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  ...q.options!.map((opt) => Text("• $opt", style: const TextStyle(fontSize: 12))),
+                  const Divider(),
+                ],
+                const Text("Answer Review:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 12)),
+                const SizedBox(height: 8),
+                TextFormField(
+                  initialValue: q.answer,
+                  decoration: const InputDecoration(
+                    labelText: 'Correct Answer',
+                    filled: true,
+                    fillColor: Color(0xFFF5F5F5),
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (val) => q.answer = val,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Icon _getQuestionIcon(String type) {
+    switch (type) {
+      case 'multiple_choice': return const Icon(Icons.list_alt, color: Colors.blue);
+      case 'true_false': return const Icon(Icons.check_circle_outline, color: Colors.green);
+      case 'fill_blank': return const Icon(Icons.edit_note, color: Colors.orange);
+      case 'matching': return const Icon(Icons.compare_arrows, color: Colors.purple);
+      default: return const Icon(Icons.style, color: Colors.red);
+    }
+  }
+
+  Future<void> _generateAIQuestions() async {
+    if (!_hasAnyMeaningfulContent()) {
+      _showSnack('Please add some content first.');
+      return;
+    }
+
+    setState(() => _isGeneratingAI = true);
+
+    // Simulate API call
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+
+    setState(() {
+      _isGeneratingAI = false;
+      _aiQuestions = [
+        GeneratedQuestion(
+          id: 'q1',
+          type: 'multiple_choice',
+          questionText: 'What is the main topic discussed in this lesson?',
+          options: ['Option A', 'Option B', 'Option C', 'Option D'],
+          answer: 'Option A',
+        ),
+        GeneratedQuestion(
+          id: 'q2',
+          type: 'true_false',
+          questionText: 'Is the content provided sufficient for an exam?',
+          answer: 'True',
+        ),
+        GeneratedQuestion(
+          id: 'q3',
+          type: 'fill_blank',
+          questionText: 'The core concept of this lesson is _____.',
+          answer: 'Knowledge',
+        ),
+      ];
+    });
+
+    _showSnack('AI Questions generated successfully!');
   }
 
   Widget _buildToolbar() {
@@ -1264,6 +1484,29 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
         return LessonVideoPlayer(url: 'file://$localPath');
       }
 
+      if (media.kind == _MediaKind.pdf) {
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.red.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.picture_as_pdf_rounded, color: Colors.red, size: 30),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  localPath.split('/').last,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
       return LessonAudioPlayer(url: 'file://$localPath');
     }
 
@@ -1296,6 +1539,30 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
       return LessonVideoPlayer(url: url);
     }
 
+    if (media.kind == _MediaKind.pdf) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.red.withOpacity(0.2)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.picture_as_pdf_rounded, color: Colors.red, size: 30),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'PDF Document',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            const Icon(Icons.open_in_new_rounded, size: 18, color: Colors.grey),
+          ],
+        ),
+      );
+    }
+
     return LessonAudioPlayer(url: url);
   }
 
@@ -1308,6 +1575,8 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
       case _MediaKind.audio:
       case _MediaKind.voice:
         return Icons.audiotrack_rounded;
+      case _MediaKind.pdf:
+        return Icons.picture_as_pdf_rounded;
     }
   }
 
@@ -1321,12 +1590,17 @@ class _LessonBuilderScreenState extends State<LessonBuilderScreen> {
         return 'Audio';
       case _MediaKind.voice:
         return 'Voice';
+      case _MediaKind.pdf:
+        return 'PDF Documentation';
     }
   }
 
   Widget _buildBottomButtons(double bottomInset) {
+    // Note: Since resizeToAvoidBottomInset is true, the Scaffold already handles the inset.
+    // Adding it again here doubles the space and causes overflow. 
+    // We only need some padding if there's no keyboard.
     return Container(
-      padding: EdgeInsets.fromLTRB(18, 10, 18, 10 + bottomInset),
+      padding: EdgeInsets.fromLTRB(18, 10, 18, bottomInset > 0 ? 10 : 24),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1383,7 +1657,7 @@ class _ModuleData {
   });
 }
 
-enum _MediaKind { image, video, audio, voice }
+enum _MediaKind { image, video, audio, voice, pdf }
 enum _MediaStatus { uploading, ready, failed, missing }
 
 class _PendingMedia {
@@ -1513,7 +1787,9 @@ class _LessonBlock {
         ? 'image'
         : m.kind == _MediaKind.video
             ? 'video'
-            : 'audio';
+            : m.kind == _MediaKind.pdf
+                ? 'file'
+                : 'audio';
     return {
       'id': id,
       'type': typeStr,

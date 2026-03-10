@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../theme.dart';
-// import '../../services/student_service.dart';
+import 'ai_tutor_screen.dart';
+import 'lesson_completion_screen.dart';
+import '../../services/student_service.dart';
 
 
 
@@ -32,7 +34,7 @@ class StudentLessonViewerScreen extends StatefulWidget {
       _StudentLessonViewerScreenState();
 }
 
-class _StudentLessonViewerScreenState extends State<StudentLessonViewerScreen> {
+class _StudentLessonViewerScreenState extends State<StudentLessonViewerScreen> with WidgetsBindingObserver {
   bool _isLoading = true;
   String? _error;
 
@@ -50,6 +52,8 @@ class _StudentLessonViewerScreenState extends State<StudentLessonViewerScreen> {
 
   // Audio auto-play support (Listen button)
   final Map<int, GlobalKey<_LessonAudioPlayerState>> _audioKeysByIndex = {};
+
+  final Stopwatch _studyStopwatch = Stopwatch();
 
   @override
   void initState() {
@@ -69,8 +73,40 @@ class _StudentLessonViewerScreenState extends State<StudentLessonViewerScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _studyStopwatch.stop();
+    _saveProgressSilently(isCompleted: _statusForStudent == 'completed');
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (!_studyStopwatch.isRunning) {
+        _studyStopwatch.start();
+      }
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      if (_studyStopwatch.isRunning) {
+        _studyStopwatch.stop();
+      }
+    }
+  }
+
+  Future<void> _saveProgressSilently({bool isCompleted = false}) async {
+    final elapsedSecs = _studyStopwatch.elapsed.inSeconds;
+    if (elapsedSecs <= 0 && !isCompleted) return;
+
+    try {
+      await StudentService.saveStudentLessonProgress(
+        academicId: widget.academicId,
+        lessonId: widget.lessonId,
+        timeSpentSeconds: elapsedSecs,
+        status: isCompleted ? 'completed' : 'draft',
+      );
+      // Reset stopwatch to avoid counting twice if not disposed
+      if (!isCompleted) _studyStopwatch.reset();
+    } catch (_) {}
   }
 
   // =========================
@@ -236,12 +272,30 @@ class _StudentLessonViewerScreenState extends State<StudentLessonViewerScreen> {
     setState(() => _isCompleting = true);
 
     try {
-      await StudentService.updateStudentLessonStatus(
+      _studyStopwatch.stop();
+      final elapsedSecs = _studyStopwatch.elapsed.inSeconds;
+
+      await StudentService.saveStudentLessonProgress(
         academicId: widget.academicId,
         lessonId: widget.lessonId,
+        timeSpentSeconds: elapsedSecs,
         status: 'completed',
       );
       _statusForStudent = 'completed';
+
+      if (!mounted) return;
+
+      // Reset the stopwatch to 0 so dispose doesn't add more time if they somehow go back.
+      _studyStopwatch.reset();
+
+      final result = await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => LessonCompletionScreen(
+            title: _title,
+            timeSpentSeconds: elapsedSecs,
+          ),
+        ),
+      );
 
       if (!mounted) return;
       Navigator.of(context).pop('completed');
@@ -478,10 +532,17 @@ class _StudentLessonViewerScreenState extends State<StudentLessonViewerScreen> {
     final isVideo = (type == 'video') || _isVideoByMimeOrExt(url, mime);
     final isAudio = (type == 'audio') || _isAudioByMimeOrExt(url, mime);
     final isImage = (type == 'image');
+    final isFile = (type == 'file') || (type == 'pdf') || mime.contains('pdf');
 
     if (isImage) {
       return _CardShell(
         child: _ImageBlock(url: url, caption: caption),
+      );
+    }
+
+    if (isFile) {
+      return _CardShell(
+        child: _FileBlock(url: url, caption: caption),
       );
     }
 
@@ -674,8 +735,12 @@ class _StudentLessonViewerScreenState extends State<StudentLessonViewerScreen> {
           ),
           _BottomNavItem(
             icon: Icons.help_outline_rounded,
-            label: 'Ask',
-            onTap: () => _showSnack('Ask سيتم تفعيلها لاحقاً.'),
+            label: 'AI Tutor',
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AITutorScreen()),
+              );
+            },
           ),
         ],
       ),
@@ -799,27 +864,22 @@ class _ImageBlock extends StatelessWidget {
             onTap: () {
               showDialog(
                 context: context,
-                builder: (_) => Dialog(
-                  insetPadding: const EdgeInsets.all(12),
+                builder: (ctx) => Dialog(
+                  backgroundColor: Colors.transparent,
                   child: InteractiveViewer(
-                    child: Image.network(url, fit: BoxFit.contain),
+                    child: Image.network(url),
                   ),
                 ),
               );
             },
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
-              child: Image.network(
-                url,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  color: const Color(0xFFEEF1F8),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    'Failed to load image',
-                    style: TextStyle(color: EduTheme.textMuted),
-                  ),
-                ),
+            child: Image.network(
+              url,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              errorBuilder: (_, __, ___) => Container(
+                height: 120,
+                color: Colors.grey.withOpacity(0.1),
+                child: const Center(child: Icon(Icons.broken_image_rounded)),
               ),
             ),
           ),
@@ -829,8 +889,9 @@ class _ImageBlock extends StatelessWidget {
           Text(
             caption,
             style: const TextStyle(
-              fontSize: 12,
-              color: EduTheme.textMuted,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: EduTheme.primaryDark,
             ),
           ),
         ],
@@ -838,6 +899,66 @@ class _ImageBlock extends StatelessWidget {
     );
   }
 }
+
+class _FileBlock extends StatelessWidget {
+  final String url;
+  final String caption;
+
+  const _FileBlock({required this.url, required this.caption});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        // In a real app, use url_launcher or a PDF viewer package.
+        // For now, we'll just show a snackbar with the URL.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Opening document: $url')),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red.withOpacity(0.1)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.picture_as_pdf_rounded, color: Colors.red, size: 32),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        caption.isNotEmpty ? caption : 'PDF Documentation',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: EduTheme.primaryDark,
+                        ),
+                      ),
+                      const Text(
+                        'Tap to open document',
+                        style: TextStyle(fontSize: 12, color: EduTheme.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.open_in_new_rounded, size: 18, color: Colors.grey),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 
 class _VideoBlock extends StatelessWidget {
   final String url;

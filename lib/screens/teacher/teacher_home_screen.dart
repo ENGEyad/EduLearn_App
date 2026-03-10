@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../theme.dart';
 import 'teacher_classes_screen.dart';
-// import 'create_lesson_select_class_screen.dart';
+import 'teacher_report_screen.dart';
+import '../../services/ai_service.dart';
 
 class TeacherHomeScreen extends StatelessWidget {
   final Map<String, dynamic> teacher; // بيانات الأستاذ من الـ API
@@ -66,6 +68,60 @@ class TeacherHomeScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _openPerformanceReports(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TeacherReportScreen(
+          teacher: teacher,
+          totalStudents: totalAssignedStudents,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _uploadMaterial(BuildContext context) async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Uploading PDF to AI...')),
+        );
+
+        final response = await AIService.uploadPDF(result.files.first);
+        
+        if (!context.mounted) return;
+        if (response != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('AI Extraction Success: ${response['total_chunks']} chunks created!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to upload PDF to AI Server'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error selecting file: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -235,16 +291,24 @@ class TeacherHomeScreen extends StatelessWidget {
                     // ),
                     // const SizedBox(height: 10),
                     _QuickActionCard(
+                      title: 'Upload AI Material',
+                      subtitle: 'Add a PDF for the AI Tutor',
+                      icon: Icons.smart_toy_outlined,
+                      onTap: () => _uploadMaterial(context),
+                    ),
+                    const SizedBox(height: 10),
+                    _QuickActionCard(
                       title: 'View All Classes',
                       subtitle: 'Manage your class rosters and schedules',
                       icon: Icons.school_outlined,
                       onTap: () => _openClassesFromQuickAccess(context),
                     ),
                     const SizedBox(height: 10),
-                    const _QuickActionCard(
+                    _QuickActionCard(
                       title: 'Check Performance',
                       subtitle: 'Review student progress and analytics',
                       icon: Icons.show_chart_rounded,
+                      onTap: () => _openPerformanceReports(context),
                     ),
 
                     const SizedBox(height: 28),

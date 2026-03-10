@@ -147,7 +147,8 @@ class TeacherMessagesScreen extends StatefulWidget {
   State<TeacherMessagesScreen> createState() => _TeacherMessagesScreenState();
 }
 
-class _TeacherMessagesScreenState extends State<TeacherMessagesScreen> {
+class _TeacherMessagesScreenState extends State<TeacherMessagesScreen>
+    with WidgetsBindingObserver {
   late List<_ChatStudent> _chatStudents;
   bool _loadingConversations = false;
 
@@ -170,12 +171,23 @@ class _TeacherMessagesScreenState extends State<TeacherMessagesScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _chatStudents = _extractChatStudents();
-    _loadTeacherConversations();
+    _loadTeacherConversations(showLoading: true);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // ✅ عند رجوع التطبيق: أعِد تثبيت الاشتراكات (في حال انقطع الاتصال)
+    if (state == AppLifecycleState.resumed) {
+      _ensureReverbClient().then((_) => _resubscribeToConversationChannels());
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+
     // ✅ مهم: لا تفصل ReverbService هنا حتى لا تقطع الاتصال عن شاشة الشات/شاشات أخرى
     try {
       for (final ch in _conversationChannels.values) {
@@ -230,10 +242,13 @@ class _TeacherMessagesScreenState extends State<TeacherMessagesScreen> {
     return list;
   }
 
-  Future<void> _loadTeacherConversations() async {
+  /// ✅ showLoading=false لتجنب “الدائرة الصغيرة” عند الرجوع من الشات
+  Future<void> _loadTeacherConversations({required bool showLoading}) async {
     if (_teacherCode.isEmpty) return;
 
-    setState(() => _loadingConversations = true);
+    if (showLoading && mounted) {
+      setState(() => _loadingConversations = true);
+    }
 
     try {
       final convos =
@@ -263,8 +278,12 @@ class _TeacherMessagesScreenState extends State<TeacherMessagesScreen> {
 
         final String lastPreview = (c['last_message'] ?? '').toString();
         final String lastTimeRaw = (c['last_message_at'] ?? '').toString();
-        final int unread =
-            int.tryParse((c['unread_count'] ?? '0').toString()) ?? 0;
+
+        // ✅ عند الأستاذ: نفضل unread_for_teacher إن توفر، وإلا fallback على unread_count
+        final int unread = int.tryParse(
+              (c['unread_for_teacher'] ?? c['unread_count'] ?? '0').toString(),
+            ) ??
+            0;
 
         final DateTime? lastAt = _parseUtcDate(lastTimeRaw);
         final String timeLabel = lastTimeRaw.isEmpty
@@ -282,6 +301,7 @@ class _TeacherMessagesScreenState extends State<TeacherMessagesScreen> {
         );
       }
 
+      if (!mounted) return;
       setState(() {
         _metaByAcademicId
           ..clear()
@@ -292,18 +312,19 @@ class _TeacherMessagesScreenState extends State<TeacherMessagesScreen> {
       await _resubscribeToConversationChannels();
     } catch (e) {
       debugPrint('Failed to load teacher conversations: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to load conversations: $e',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+      if (showLoading && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to load conversations: $e',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-        ),
-      );
+        );
+      }
     } finally {
-      if (mounted) setState(() => _loadingConversations = false);
+      if (showLoading && mounted) setState(() => _loadingConversations = false);
     }
   }
 
@@ -313,8 +334,10 @@ class _TeacherMessagesScreenState extends State<TeacherMessagesScreen> {
     if (_reverbClient != null) return;
 
     try {
-      _reverbClient =
-          await ReverbService.getTeacherClient(teacherCode: _teacherCode);
+      _reverbClient = await ReverbService.getTeacherClient(
+        teacherCode: _teacherCode,
+        port: 8080,
+      );
     } catch (e) {
       debugPrint('TeacherMessagesScreen: Failed to init Reverb client: $e');
     }
@@ -333,12 +356,10 @@ class _TeacherMessagesScreenState extends State<TeacherMessagesScreen> {
       // ✅ مهم: listen قبل subscribe حتى لا نفوّت أول events
       ch.stream.listen(
         (ChannelEvent event) {
-          // debugPrint('TeacherMessagesScreen EVENT(${conversationId}): ${event.eventName}');
           _handleConversationChannelEvent(conversationId, event);
         },
         onError: (e) {
-          debugPrint(
-              'TeacherMessagesScreen: error on channel $conversationId: $e');
+          debugPrint('TeacherMessagesScreen: error on channel $conversationId: $e');
         },
       );
 
@@ -346,7 +367,8 @@ class _TeacherMessagesScreenState extends State<TeacherMessagesScreen> {
       _conversationChannels[conversationId] = ch;
     } catch (e) {
       debugPrint(
-          'TeacherMessagesScreen: failed to subscribe to conv $conversationId: $e');
+        'TeacherMessagesScreen: failed to subscribe to conv $conversationId: $e',
+      );
     }
   }
 
@@ -375,7 +397,6 @@ class _TeacherMessagesScreenState extends State<TeacherMessagesScreen> {
   }
 
   void _handleConversationChannelEvent(int conversationId, ChannelEvent event) {
-    // ✅ فلترة مرنة بدل شرط صارم
     if (!_isMessageSentEvent(event.eventName)) return;
 
     try {
@@ -426,9 +447,9 @@ class _TeacherMessagesScreenState extends State<TeacherMessagesScreen> {
           : _formatTimeLabel(lastTimeRaw, forConversation: true);
 
       // unread logic (عميل)
-      int unreadClient;
       final isOpen = _TeacherChatState.currentConversationId == conversationId;
 
+      int unreadClient;
       if (isOpen) {
         unreadClient = 0;
       } else if (senderType == 'teacher') {
@@ -495,14 +516,18 @@ class _TeacherMessagesScreenState extends State<TeacherMessagesScreen> {
             ? _formatTimeLabel(lastTimeRaw, forConversation: true)
             : '';
 
+        if (!mounted) return;
         setState(() {
           _metaByAcademicId[s.academicId] = _ConversationMeta(
             conversationId: conversationId!,
             lastMessagePreview: lastPreview,
             lastMessageTimeLabel: timeLabel,
             lastMessageAt: lastAt,
-            unreadCount:
-                int.tryParse((conv['unread_count'] ?? '0').toString()) ?? 0,
+            unreadCount: int.tryParse(
+                  (conv['unread_for_teacher'] ?? conv['unread_count'] ?? '0')
+                      .toString(),
+                ) ??
+                0,
           );
           _academicIdByConversationId[conversationId!] = s.academicId;
         });
@@ -527,6 +552,7 @@ class _TeacherMessagesScreenState extends State<TeacherMessagesScreen> {
 
     final meta = _metaByAcademicId[s.academicId];
     if (meta != null && (meta.unreadCount ?? 0) > 0) {
+      if (!mounted) return;
       setState(() {
         _metaByAcademicId[s.academicId] = _ConversationMeta(
           conversationId: meta.conversationId,
@@ -554,8 +580,8 @@ class _TeacherMessagesScreenState extends State<TeacherMessagesScreen> {
       _TeacherChatState.currentConversationId = null;
     }
 
-    // ✅ اختياري: إعادة تحميل للتأكد من unread من السيرفر
-    await _loadTeacherConversations();
+    // ✅ تحديث صامت بدل “اللود الدائري” بعد الرجوع
+    await _loadTeacherConversations(showLoading: false);
   }
 
   @override
@@ -593,8 +619,7 @@ class _TeacherMessagesScreenState extends State<TeacherMessagesScreen> {
             CircleAvatar(
               radius: 20,
               backgroundColor: Colors.white,
-              backgroundImage:
-                  avatarUrl != null ? NetworkImage(avatarUrl) : null,
+              backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
               child: avatarUrl == null
                   ? const Icon(Icons.person, color: EduTheme.primaryDark)
                   : null,
@@ -637,8 +662,8 @@ class _TeacherMessagesScreenState extends State<TeacherMessagesScreen> {
             )
           else
             IconButton(
-              icon: const Icon(Icons.search_rounded, color: EduTheme.primaryDark),
-              onPressed: () {},
+              icon: const Icon(Icons.refresh_rounded, color: EduTheme.primaryDark),
+              onPressed: () => _loadTeacherConversations(showLoading: true),
             ),
         ],
       ),
@@ -799,9 +824,8 @@ class _MessageItem extends StatelessWidget {
                 backgroundColor: hasUnread
                     ? EduTheme.primary.withOpacity(0.14)
                     : Colors.white,
-                backgroundImage: avatarImageUrl != null
-                    ? NetworkImage(avatarImageUrl!)
-                    : null,
+                backgroundImage:
+                    avatarImageUrl != null ? NetworkImage(avatarImageUrl!) : null,
                 child: avatarImageUrl == null
                     ? Text(
                         avatarText,
@@ -867,11 +891,8 @@ class _MessageItem extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 13,
-                        color: hasUnread
-                            ? EduTheme.primaryDark
-                            : EduTheme.textMuted,
-                        fontWeight:
-                            hasUnread ? FontWeight.w600 : FontWeight.w400,
+                        color: hasUnread ? EduTheme.primaryDark : EduTheme.textMuted,
+                        fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,
                       ),
                     ),
                   ],
@@ -933,7 +954,8 @@ class TeacherChatScreen extends StatefulWidget {
   State<TeacherChatScreen> createState() => _TeacherChatScreenState();
 }
 
-class _TeacherChatScreenState extends State<TeacherChatScreen> {
+class _TeacherChatScreenState extends State<TeacherChatScreen>
+    with WidgetsBindingObserver {
   final List<Map<String, dynamic>> _messages = [];
   final Set<String> _messageIds = {};
 
@@ -955,9 +977,17 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _TeacherChatState.currentConversationId = widget.conversationId;
     _loadMessages();
     _initReverb();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _initReverb();
+    }
   }
 
   Future<void> _loadMessages() async {
@@ -1006,17 +1036,27 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   }
 
   Future<void> _initReverb() async {
+    if (_teacherCode.isEmpty) return;
+
     try {
-      _reverbClient =
-          await ReverbService.getTeacherClient(teacherCode: _teacherCode);
+      _reverbClient = await ReverbService.getTeacherClient(
+        teacherCode: _teacherCode,
+        port: 8080,
+      );
 
       final channelName = 'private-conversation.${widget.conversationId}';
+
+      // ✅ افصل القديم قبل إعادة الاشتراك (مهم مع reconnect/resume)
+      try {
+        _channel?.unsubscribe();
+      } catch (_) {}
+      _channel = null;
+
       _channel = _reverbClient!.subscribeToChannel(channelName);
 
       // ✅ listen قبل subscribe
       _channel!.stream.listen(
         (ChannelEvent event) {
-          // debugPrint('TeacherChatScreen EVENT: ${event.eventName}');
           if (!_isMessageSentEvent(event.eventName)) return;
 
           try {
@@ -1070,9 +1110,27 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     }
   }
 
-  Future<void> _sendMessage() async {
-    final text = _textController.text.trim();
+  Future<void> _sendMessage({String? overrideText}) async {
+    final text = (overrideText ?? _textController.text).trim();
     if (text.isEmpty) return;
+
+    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+    final tempMsg = {
+      'id': tempId,
+      'body': text,
+      'sender_type': 'teacher',
+      'sent_at': DateTime.now().toUtc().toIso8601String(),
+      'is_temp': true,
+    };
+
+    if (mounted) {
+      setState(() {
+        _messageIds.add(tempId);
+        _messages.add(tempMsg);
+      });
+      _textController.clear();
+      _scrollToBottom();
+    }
 
     try {
       final sent = await ChatService.sendMessageAsTeacher(
@@ -1083,20 +1141,34 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
 
       final idStr = (sent['id'] ?? '').toString();
 
+      if (!mounted) return;
       setState(() {
-        if (idStr.isNotEmpty) _messageIds.add(idStr);
-        _messages.add(sent);
+        // حذف الرسالة المؤقتة واستبدالها بالرسالة الحقيقية من السيرفر
+        _messages.removeWhere((m) => m['id'] == tempId);
+        _messageIds.remove(tempId);
+
+        if (idStr.isNotEmpty && !_messageIds.contains(idStr)) {
+          _messageIds.add(idStr);
+          _messages.add(sent);
+        }
       });
 
-      _textController.clear();
       _scrollToBottom();
     } catch (e) {
       debugPrint('Failed to send message: $e');
       if (!mounted) return;
+
+      // في حال الفشل
+      setState(() {
+        _messages.removeWhere((m) => m['id'] == tempId);
+        _messageIds.remove(tempId);
+        _textController.text = text;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            e.toString(),
+            'فشل الإرسال: $e',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -1118,6 +1190,8 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+
     if (_TeacherChatState.currentConversationId == widget.conversationId) {
       _TeacherChatState.currentConversationId = null;
     }
@@ -1162,8 +1236,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
             CircleAvatar(
               radius: 20,
               backgroundColor: Colors.white,
-              backgroundImage:
-                  avatarUrl != null ? NetworkImage(avatarUrl) : null,
+              backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
               child: avatarUrl == null
                   ? const Icon(Icons.person, color: EduTheme.primaryDark)
                   : null,
@@ -1249,11 +1322,10 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                                 dateHeader = 'Yesterday';
                               } else {
                                 const monthNames = [
-                                  'Jan','Feb','Mar','Apr','May','Jun',
-                                  'Jul','Aug','Sep','Oct','Nov','Dec',
+                                  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
                                 ];
-                                dateHeader =
-                                    '${monthNames[dt.month - 1]} ${dt.day}';
+                                dateHeader = '${monthNames[dt.month - 1]} ${dt.day}';
                               }
                             }
                           }
@@ -1265,6 +1337,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                                 isMe: isTeacher,
                                 text: body,
                                 timeLabel: createdTimeLabel,
+                                isTemp: m['is_temp'] == true,
                               ),
                             ],
                           );
@@ -1285,16 +1358,17 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                         color: const Color(0xFFF5F7FB),
                         borderRadius: BorderRadius.circular(24),
                       ),
-                      child: TextField(
-                        controller: _textController,
-                        minLines: 1,
-                        maxLines: 4,
-                        decoration: const InputDecoration(
-                          hintText: 'Type a message...',
-                          border: InputBorder.none,
+                        child: TextField(
+                          controller: _textController,
+                          minLines: 1,
+                          maxLines: 4,
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: (val) => _sendMessage(),
+                          decoration: const InputDecoration(
+                            hintText: 'Type a message...',
+                            border: InputBorder.none,
+                          ),
                         ),
-                        textInputAction: TextInputAction.newline,
-                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -1358,11 +1432,13 @@ class _ChatBubble extends StatelessWidget {
   final bool isMe;
   final String text;
   final String timeLabel;
+  final bool isTemp;
 
   const _ChatBubble({
     required this.isMe,
     required this.text,
     required this.timeLabel,
+    this.isTemp = false,
   });
 
   @override
@@ -1381,32 +1457,35 @@ class _ChatBubble extends StatelessWidget {
                 isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
             children: [
               Flexible(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: bgColor,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(20),
-                      topRight: const Radius.circular(20),
-                      bottomLeft: Radius.circular(isMe ? 20 : 6),
-                      bottomRight: Radius.circular(isMe ? 6 : 20),
+                child: Opacity(
+                  opacity: isTemp ? 0.6 : 1.0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        offset: const Offset(0, 1),
-                        blurRadius: 3,
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(20),
+                        topRight: const Radius.circular(20),
+                        bottomLeft: Radius.circular(isMe ? 20 : 6),
+                        bottomRight: Radius.circular(isMe ? 6 : 20),
                       ),
-                    ],
-                  ),
-                  child: Text(
-                    text,
-                    style: TextStyle(
-                      color: textColor,
-                      fontSize: 14,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          offset: const Offset(0, 1),
+                          blurRadius: 3,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      text,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 ),
@@ -1414,19 +1493,24 @@ class _ChatBubble extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 2),
-          if (timeLabel.isNotEmpty)
+          if (timeLabel.isNotEmpty || isTemp)
             Row(
               mainAxisAlignment:
                   isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
               children: [
+                if (isTemp)
+                   const Padding(
+                     padding: EdgeInsets.only(left: 4),
+                     child: SizedBox(width: 8, height: 8, child: CircularProgressIndicator(strokeWidth: 1)),
+                   ),
                 Text(
-                  timeLabel,
+                  isTemp ? 'Sending...' : timeLabel,
                   style: const TextStyle(
                     fontSize: 11,
                     color: EduTheme.textMuted,
                   ),
                 ),
-                if (isMe) ...[
+                if (isMe && !isTemp) ...[
                   const SizedBox(width: 4),
                   Icon(
                     Icons.done_all_rounded,
